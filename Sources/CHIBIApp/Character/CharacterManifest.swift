@@ -96,6 +96,50 @@ struct CharacterManifest: Codable, Equatable, Sendable {
     let scale: Double
   }
 
+  /// Optional warp landmarks for the full-body sprite, in normalized sprite coordinates with the
+  /// origin at the bottom-left. Without a rig the sprite only moves rigidly.
+  struct FullBodyRig: Codable, Equatable, Sendable {
+    let neck: Point
+    let headBlendHeight: Double
+    let maxHeadTilt: Double
+    let hairTipY: Double
+    let hairRootY: Double
+    let maxHairSway: Double
+
+    var isValid: Bool {
+      let unit = 0.0...1.0
+      return unit.contains(neck.x) && unit.contains(neck.y)
+        && headBlendHeight > 0 && headBlendHeight < neck.y
+        && (0...0.1).contains(maxHeadTilt)
+        && unit.contains(hairTipY) && unit.contains(hairRootY) && hairTipY < hairRootY
+        && (0...0.05).contains(maxHairSway)
+    }
+  }
+
+  /// How the full-body sprite is prepared for its on-screen size. Variants are derived images
+  /// with the same pixel dimensions as `assets.fullBody`; `"original"` always selects that image.
+  struct FullBodyDisplay: Codable, Equatable, Sendable {
+    enum Sampling: String, Codable, Sendable {
+      /// Draw the full-resolution texture with SpriteKit's bilinear filtering.
+      case direct
+      /// Lanczos-resample to the sprite's on-screen pixel height before drawing.
+      case displayResampled
+    }
+
+    static let originalVariant = "original"
+    static let standard = FullBodyDisplay(
+      sampling: .direct, variant: originalVariant, variants: nil)
+
+    var sampling: Sampling
+    var variant: String
+    var variants: [String: String]?
+
+    var isValid: Bool {
+      variants?[Self.originalVariant] == nil
+        && (variant == Self.originalVariant || variants?[variant] != nil)
+    }
+  }
+
   struct AnimationConfiguration: Codable, Equatable, Sendable {
     let idleBobHeight: Double
     let idleCycleDuration: Double
@@ -124,11 +168,31 @@ struct CharacterManifest: Codable, Equatable, Sendable {
   var renderingMode: RenderingMode?
   let assets: AssetReferences
   var fullBodyLayout: FullBodyLayout?
+  var fullBodyRig: FullBodyRig?
+  var fullBodyDisplay: FullBodyDisplay?
   var layers: [LayerLayout]?
   let animations: AnimationConfiguration
 
   var resolvedRenderingMode: RenderingMode {
     renderingMode ?? .layered
+  }
+
+  var resolvedFullBodyDisplay: FullBodyDisplay {
+    fullBodyDisplay ?? .standard
+  }
+
+  /// The selected full-body image first, then the original as its fallback.
+  var fullBodyImageCandidates: [String] {
+    guard let original = assets.fullBody else { return [] }
+    let display = resolvedFullBodyDisplay
+    guard let selected = display.variants?[display.variant], selected != original else {
+      return [original]
+    }
+    return [selected, original]
+  }
+
+  var allAssetFiles: [String] {
+    assets.allFiles + (fullBodyDisplay?.variants?.values.sorted() ?? [])
   }
 
   var resolvedLayers: [LayerLayout] {
@@ -142,7 +206,7 @@ struct CharacterManifest: Codable, Equatable, Sendable {
     guard renderDimensions.width > 0, renderDimensions.height > 0 else {
       throw CharacterManifestError.invalidRenderDimensions
     }
-    for file in assets.allFiles {
+    for file in allAssetFiles {
       let path = file as NSString
       guard !path.isAbsolutePath, !path.pathComponents.contains("..") else {
         throw CharacterManifestError.unsafeAssetPath(file)
@@ -163,6 +227,12 @@ struct CharacterManifest: Codable, Equatable, Sendable {
       else {
         throw CharacterManifestError.invalidFullBodyLayout
       }
+    }
+    if let rig = fullBodyRig, !rig.isValid {
+      throw CharacterManifestError.invalidFullBodyRig
+    }
+    if let display = fullBodyDisplay, !display.isValid {
+      throw CharacterManifestError.invalidFullBodyDisplay
     }
     if let layers {
       guard Set(layers.map(\.layer)).count == layers.count else {
@@ -251,6 +321,8 @@ enum CharacterManifestError: Error, Equatable {
   case unreadableAsset(String)
   case missingFullBodyAsset
   case invalidFullBodyLayout
+  case invalidFullBodyRig
+  case invalidFullBodyDisplay
   case duplicateLayer
   case duplicateDrawOrder
   case invalidLayerLayout(CharacterManifest.Layer)

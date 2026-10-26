@@ -7,6 +7,9 @@ final class MenuBarController: NSObject, NSMenuDelegate {
   private weak var overlay: CharacterOverlayControlling?
   private let visibilityItem = NSMenuItem()
   private var sizeItems: [CharacterSize: NSMenuItem] = [:]
+  private let slowMotionItem = NSMenuItem()
+  private let expressiveMotionItem = NSMenuItem()
+  private var isSlowMotion = false
 
   init(settings: AppSettings, overlay: CharacterOverlayControlling) {
     self.settings = settings
@@ -51,6 +54,18 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     overlay?.previewAnimation(animation)
   }
 
+  @objc private func toggleSlowMotion() {
+    isSlowMotion.toggle()
+    overlay?.setAnimationSpeed(isSlowMotion ? 0.25 : 1)
+    refreshMenuState()
+  }
+
+  @objc private func toggleExpressiveMotion() {
+    guard let overlay else { return }
+    overlay.setExpressiveMotionEnabled(!overlay.isExpressiveMotionEnabled)
+    refreshMenuState()
+  }
+
   @objc private func quit() {
     NSApplication.shared.terminate(nil)
   }
@@ -87,6 +102,20 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     animationRoot.submenu = animationMenu
     menu.addItem(animationRoot)
 
+    let developerMenu = NSMenu(title: "Developer")
+    developerMenu.autoenablesItems = false
+    slowMotionItem.title = "Slow Motion (¼×)"
+    slowMotionItem.target = self
+    slowMotionItem.action = #selector(toggleSlowMotion)
+    developerMenu.addItem(slowMotionItem)
+    expressiveMotionItem.title = "Head Tilt & Hair Motion (Experimental)"
+    expressiveMotionItem.target = self
+    expressiveMotionItem.action = #selector(toggleExpressiveMotion)
+    developerMenu.addItem(expressiveMotionItem)
+    let developerRoot = NSMenuItem(title: "Developer", action: nil, keyEquivalent: "")
+    developerRoot.submenu = developerMenu
+    menu.addItem(developerRoot)
+
     let reset = NSMenuItem(
       title: "Reset Position", action: #selector(resetPosition), keyEquivalent: "r")
     reset.target = self
@@ -104,5 +133,8 @@ final class MenuBarController: NSObject, NSMenuDelegate {
     for (size, item) in sizeItems {
       item.state = settings.characterSize == size ? .on : .off
     }
+    slowMotionItem.state = isSlowMotion ? .on : .off
+    expressiveMotionItem.isEnabled = overlay?.supportsExpressiveMotion ?? false
+    expressiveMotionItem.state = overlay?.isExpressiveMotionEnabled == true ? .on : .off
   }
 }

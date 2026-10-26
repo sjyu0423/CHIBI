@@ -9,9 +9,13 @@ final class CharacterScene: SKScene, CharacterRendering {
   private let manifest: CharacterManifest
   private let animator: any CharacterAnimating
 
-  override init() {
-    let loader = CharacterAssetLoader(bundle: .module)
-    let manifest = (try? CharacterAssetLoader.loadBundledDefault()) ?? .proceduralFallback
+  override convenience init() {
+    self.init(
+      manifest: (try? CharacterAssetLoader.loadBundledDefault()) ?? .proceduralFallback,
+      assetLoader: .bundled)
+  }
+
+  init(manifest: CharacterManifest, assetLoader loader: CharacterAssetLoader) {
     let character: SKNode
     let animator: any CharacterAnimating
     if manifest.resolvedRenderingMode == .fullBody,
@@ -48,14 +52,30 @@ final class CharacterScene: SKScene, CharacterRendering {
   }
 
   override func didMove(to view: SKView) {
-    fitRenderArea(to: view.bounds.size)
+    fitRenderArea(to: view.bounds.size, backingScale: view.window?.backingScaleFactor ?? 1)
   }
 
-  func fitRenderArea(to viewSize: CGSize) {
+  /// `backingScale` only selects the full-body texture resolution; layout stays in points.
+  func fitRenderArea(to viewSize: CGSize, backingScale: CGFloat) {
     let fitted = manifest.renderDimensions.sceneSize(fitting: viewSize)
     if size != fitted {
       size = fitted
     }
+    guard viewSize.height > 0, let fullBody = character as? FullBodyCharacterNode else { return }
+    fullBody.prepareTexture(pixelsPerSceneUnit: viewSize.height / fitted.height * backingScale)
+  }
+
+  var state: CharacterState { stateMachine.state }
+  var supportsExpressiveMotion: Bool { animator.supportsExpressiveMotion }
+  var isExpressiveMotionEnabled: Bool { animator.isExpressiveMotionEnabled }
+
+  /// Developer playback rate; 1 is normal speed.
+  func setAnimationSpeed(_ speed: Double) {
+    self.speed = max(0.05, min(speed, 4))
+  }
+
+  func setExpressiveMotionEnabled(_ enabled: Bool) {
+    animator.isExpressiveMotionEnabled = enabled && animator.supportsExpressiveMotion
   }
 
   func containsCharacter(point: CGPoint) -> Bool {

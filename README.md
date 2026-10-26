@@ -40,18 +40,30 @@ through to the application below.
 ## Animation preview
 
 Open **Animation Preview** from the flower menu and choose Idle, Happy, Sleep, Walk in
-Place, or Dance. Selecting another animation interrupts the current pose cleanly. Dragging
-temporarily interrupts a looping preview and restores it on release; dragging during the
-one-shot happy reaction returns to idle.
+Place, Sway Dance, or Hop Dance. Selecting another animation interrupts the current pose cleanly.
+Dragging temporarily interrupts a looping preview and restores it on release; dragging during
+the one-shot happy reaction returns to idle.
+
+The **Developer** submenu offers session-only Slow Motion (¼×) and a toggle for the experimental
+head-tilt and hair warp, which is available when the manifest defines a `fullBodyRig`.
+
+Render offscreen animation previews (GIFs, filmstrips, and warp review sheets) into
+`assets/previews/animation` with a Python that has Pillow and NumPy:
+
+```sh
+PYTHON=.build/artvenv/bin/python scripts/render-animation-previews.sh
+```
 
 ## Manual smoke checklist
 
 1. Launch `.build/CHIBI.app`; confirm the character and flower menu item appear without
    focusing the overlay.
-2. Preview Idle, Happy, Sleep, Walk in Place, and Dance; confirm each switches cleanly.
-3. Confirm the default full-body idle has subtle bobbing and breathing without visual distortion.
+2. Preview Idle, Happy, Sleep, Walk in Place, Sway Dance, and Hop Dance; confirm each switches
+   cleanly.
+3. Confirm the default full-body idle has subtle breathing, sway, and head/hair motion without
+   visual distortion.
 4. Click the character; confirm the happy hop completes and returns to idle.
-5. Drag during Idle, Sleep, Walk, and Dance; confirm the prior looping pose resumes.
+5. Drag during Idle, Sleep, Walk, and both dances; confirm the prior looping pose resumes.
 6. Drag between displays if available and confirm the character remains reachable.
 7. Click through the window's transparent corners into an app underneath.
 8. Exercise Show/Hide, all three sizes, and Reset Position.
@@ -68,6 +80,25 @@ full-character sprite and its transparent, dark-background, and source-compariso
 
 ```sh
 python3 scripts/generate-sleepy-coder-full-sprite.py
+```
+
+### Small-size display
+
+The overlay draws the sprite 5–10× smaller than its source. The manifest's `fullBodyDisplay`
+block resamples it with Lanczos filtering to the exact on-screen pixel size (`displayResampled`),
+and selects the `soft` variant. That variant has gentler hair gloss and shadows; the eyes, face,
+hoodie, outlines, and alpha are unchanged. Regenerate it after the main sprite with:
+
+```sh
+python3 scripts/generate-sleepy-coder-soft-sprite.py
+```
+
+To revert, set `"variant": "original"` (original art, still resampled). To restore the previous
+rendering exactly, also set `"sampling": "direct"`, or remove the block. Compare all options at
+every size, 1× and 2×, with:
+
+```sh
+PYTHON=.build/artvenv/bin/python scripts/render-display-previews.sh   # assets/previews/display
 ```
 
 The experimental part rig can still be regenerated separately with:

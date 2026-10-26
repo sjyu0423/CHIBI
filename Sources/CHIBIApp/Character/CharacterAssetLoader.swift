@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import ImageIO
 import SpriteKit
 
 struct CharacterAssetLoader {
@@ -31,6 +32,17 @@ struct CharacterAssetLoader {
       throw CharacterManifestError.unreadableAsset(path)
     }
     return SKTexture(image: image)
+  }
+
+  func image(named path: String) throws -> CGImage {
+    let url = try assetURL(named: path)
+    guard
+      let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+      let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
+    else {
+      throw CharacterManifestError.unreadableAsset(path)
+    }
+    return image
   }
 
   func assetURL(named path: String) throws -> URL {

@@ -1,0 +1,279 @@
+{
+  "options": [
+    "original-direct",
+    "original-resampled",
+    "soft-resampled"
+  ],
+  "stills": {
+    "small@1x-original-direct": {
+      "size": [
+        150,
+        180
+      ],
+      "bounds": [
+        30,
+        19,
+        119,
+        171
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 30.73
+    },
+    "small@1x-original-resampled": {
+      "size": [
+        150,
+        180
+      ],
+      "bounds": [
+        29,
+        19,
+        120,
+        171
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 14.85
+    },
+    "small@1x-soft-resampled": {
+      "size": [
+        150,
+        180
+      ],
+      "bounds": [
+        29,
+        19,
+        120,
+        171
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 14.63
+    },
+    "medium@1x-original-direct": {
+      "size": [
+        210,
+        250
+      ],
+      "bounds": [
+        41,
+        26,
+        168,
+        239
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 26.91
+    },
+    "medium@1x-original-resampled": {
+      "size": [
+        210,
+        250
+      ],
+      "bounds": [
+        41,
+        25,
+        168,
+        239
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 10.99
+    },
+    "medium@1x-soft-resampled": {
+      "size": [
+        210,
+        250
+      ],
+      "bounds": [
+        41,
+        25,
+        168,
+        239
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 10.87
+    },
+    "large@1x-original-direct": {
+      "size": [
+        285,
+        340
+      ],
+      "bounds": [
+        56,
+        35,
+        228,
+        325
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 22.59
+    },
+    "large@1x-original-resampled": {
+      "size": [
+        285,
+        340
+      ],
+      "bounds": [
+        55,
+        35,
+        229,
+        326
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 8.99
+    },
+    "large@1x-soft-resampled": {
+      "size": [
+        285,
+        340
+      ],
+      "bounds": [
+        55,
+        35,
+        229,
+        326
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 8.93
+    },
+    "small@2x-original-direct": {
+      "size": [
+        300,
+        360
+      ],
+      "bounds": [
+        59,
+        38,
+        240,
+        343
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 22.31
+    },
+    "small@2x-original-resampled": {
+      "size": [
+        300,
+        360
+      ],
+      "bounds": [
+        58,
+        38,
+        241,
+        344
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 12.42
+    },
+    "small@2x-soft-resampled": {
+      "size": [
+        300,
+        360
+      ],
+      "bounds": [
+        58,
+        38,
+        241,
+        344
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 12.38
+    },
+    "medium@2x-original-direct": {
+      "size": [
+        420,
+        500
+      ],
+      "bounds": [
+        83,
+        52,
+        336,
+        479
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 17.88
+    },
+    "medium@2x-original-resampled": {
+      "size": [
+        420,
+        500
+      ],
+      "bounds": [
+        82,
+        51,
+        337,
+        479
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 8.25
+    },
+    "medium@2x-soft-resampled": {
+      "size": [
+        420,
+        500
+      ],
+      "bounds": [
+        82,
+        51,
+        337,
+        479
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 8.21
+    },
+    "large@2x-original-direct": {
+      "size": [
+        570,
+        680
+      ],
+      "bounds": [
+        112,
+        71,
+        457,
+        651
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 13.29
+    },
+    "large@2x-original-resampled": {
+      "size": [
+        570,
+        680
+      ],
+      "bounds": [
+        111,
+        70,
+        458,
+        652
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 6.96
+    },
+    "large@2x-soft-resampled": {
+      "size": [
+        570,
+        680
+      ],
+      "bounds": [
+        111,
+        70,
+        458,
+        652
+      ],
+      "edgeAlphaMax": 0,
+      "clipped": false,
+      "detailEnergy": 6.93
+    }
+  }
+}

@@ -35,7 +35,8 @@ are required.
   directly from window/menu code.
 - Reset keyed animation actions and baseline transforms before presenting a new pose.
 - Keep screen positions in AppKit points. Let `SKView` perform backing-scale conversion;
-  do not manually multiply by Retina scale.
+ do not manually multiply by Retina scale. The backing scale may only choose full-body
+ texture resolution (`fitRenderArea(to:backingScale:)`).
 - Select full-body versus layered rendering through the manifest. Full-body artwork uses
   manifest-defined position, normalized anchor, and scale; layered PNGs additionally use
   manifest-defined pivots and draw order.

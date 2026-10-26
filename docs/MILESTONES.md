@@ -37,9 +37,27 @@ The procedural character remains the fallback implementation.
 The neutral full-body overlay has been visually smoke-tested. Acceptance still requires the
 menu-driven animation and input checklist at all three overlay sizes.
 
-## M1C and later (not started)
+## M2A — Full-body animation foundation (implemented on `milestone-2a-animation`; GUI review pending)
 
-Music synchronization may be explored only after M1B is accepted and its privacy,
+Baseline: tag `v0.1-character-baseline` (`fde39ea`) on `main`.
+
+- Pure, tested keyframe choreography (`FullBodyChoreography`) for idle breathing/sway, happy
+  bounce, sleepy dozing, walk in place, gentle sway dance, energetic hop dance, and dragging.
+- Feet-anchored body pivot, separate breathing pivot, and keyed per-channel actions that reset
+  before every state.
+- Experimental head tilt and hair secondary motion through a manifest-registered
+  `SKWarpGeometryGrid` rig (accepted; toggleable from the Developer menu).
+- Blink using the existing registered eye overlays was evaluated and rejected; it needs
+  artist-made closed-eye art matching the approved sprite.
+- Developer menu (slow motion, expressive-motion toggle) and an offscreen SpriteKit preview
+  renderer that produces GIFs, filmstrips, and warp review sheets.
+
+Acceptance requires the manual review checklist in `docs/HANDOFF.md`. M2A must not be merged
+into `main` until approved.
+
+## Later milestones (not started)
+
+Music synchronization may be explored only after M2A is accepted and its privacy,
 permission, and performance design is approved. Do not add audio capture as part of M1A.
 
 Costumes, networking, AI/LLM features, file access, accessibility automation, global

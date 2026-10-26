@@ -7,6 +7,7 @@ enum CharacterState: String, Equatable, Sendable {
   case sleeping
   case walking
   case dancing
+  case hopDancing
 }
 
 enum CharacterAnimation: String, CaseIterable, Equatable, Sendable {
@@ -15,6 +16,7 @@ enum CharacterAnimation: String, CaseIterable, Equatable, Sendable {
   case sleep
   case walk
   case dance
+  case hopDance
 
   var title: String {
     switch self {
@@ -22,7 +24,8 @@ enum CharacterAnimation: String, CaseIterable, Equatable, Sendable {
     case .happy: "Happy"
     case .sleep: "Sleep"
     case .walk: "Walk in Place"
-    case .dance: "Dance"
+    case .dance: "Sway Dance"
+    case .hopDance: "Hop Dance"
     }
   }
 }
@@ -49,13 +52,13 @@ struct CharacterStateMachine: Sendable {
     case (.reacting, .reactionFinished):
       state = .idle
     case (.idle, .dragBegan), (.reacting, .dragBegan), (.sleeping, .dragBegan),
-      (.walking, .dragBegan), (.dancing, .dragBegan):
+      (.walking, .dragBegan), (.dancing, .dragBegan), (.hopDancing, .dragBegan):
       stateBeforeDragging = state == .reacting ? .idle : state
       state = .dragging
     case (.dragging, .dragEnded):
       state = stateBeforeDragging
     case (.idle, .sleepRequested), (.reacting, .sleepRequested), (.walking, .sleepRequested),
-      (.dancing, .sleepRequested):
+      (.dancing, .sleepRequested), (.hopDancing, .sleepRequested):
       state = .sleeping
     case (.sleeping, .wakeRequested):
       state = .idle
@@ -78,6 +81,7 @@ extension CharacterAnimation {
     case .sleep: .sleeping
     case .walk: .walking
     case .dance: .dancing
+    case .hopDance: .hopDancing
     }
   }
 }
