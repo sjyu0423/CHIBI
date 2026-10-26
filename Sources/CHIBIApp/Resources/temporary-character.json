@@ -1,0 +1,19 @@
+{
+  "identifier": "dev.chibi.temporary-layered",
+  "displayName": "Temporary Layered Chibi",
+  "renderDimensions": {
+    "width": 210,
+    "height": 250
+  },
+  "assets": {},
+  "animations": {
+    "idleBobHeight": 3.5,
+    "idleCycleDuration": 2.4,
+    "blinkMinimumDelay": 2.0,
+    "blinkDelayVariation": 2.4,
+    "happyHopHeight": 18.0,
+    "walkStepDuration": 0.28,
+    "danceBeatDuration": 0.42,
+    "sleepSwayDuration": 2.8
+  }
+}
