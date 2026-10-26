@@ -3,6 +3,8 @@ import SpriteKit
 @MainActor
 protocol CharacterAnimating: AnyObject {
   var reactionDidFinish: (() -> Void)? { get set }
+  var supportsExpressiveMotion: Bool { get }
+  var isExpressiveMotionEnabled: Bool { get set }
   func play(state: CharacterState)
 }
 
@@ -16,6 +18,8 @@ final class CharacterAnimator: CharacterAnimating {
   private let character: LayeredCharacterNode
   private let configuration: CharacterManifest.AnimationConfiguration
   var reactionDidFinish: (() -> Void)?
+  let supportsExpressiveMotion = false
+  var isExpressiveMotionEnabled = false
 
   init(
     character: LayeredCharacterNode,
@@ -40,6 +44,8 @@ final class CharacterAnimator: CharacterAnimating {
       playWalking()
     case .dancing:
       playDance()
+    case .hopDancing:
+      playHopDance()
     }
   }
 
@@ -167,6 +173,32 @@ final class CharacterAnimator: CharacterAnimating {
           eased(.rotate(toAngle: 0.055, duration: beat)),
         ])))
     character.hairFrontRoot.run(secondaryBounce(height: 2.5, duration: beat * 1.8))
+    startBlinking()
+  }
+
+  private func playHopDance() {
+    let beat = configuration.danceBeatDuration * 0.8
+    let height = configuration.happyHopHeight * 0.6
+    character.run(
+      .repeatForever(
+        .sequence([
+          eased(
+            .group([
+              .moveBy(x: 8, y: height, duration: beat / 2),
+              .rotate(toAngle: -0.04, duration: beat / 2),
+            ])),
+          eased(.moveBy(x: 8, y: -height, duration: beat / 2)),
+          eased(
+            .group([
+              .moveBy(x: -8, y: height, duration: beat / 2),
+              .rotate(toAngle: 0.04, duration: beat / 2),
+            ])),
+          eased(.moveBy(x: -8, y: -height, duration: beat / 2)),
+        ])),
+      withKey: ActionKey.primary)
+    character.leftArmRoot.run(danceArm(direction: -1, duration: beat / 2))
+    character.rightArmRoot.run(danceArm(direction: 1, duration: beat / 2))
+    character.hairFrontRoot.run(secondaryBounce(height: 3, duration: beat))
     startBlinking()
   }
 

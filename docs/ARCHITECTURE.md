@@ -20,10 +20,49 @@ looping actions cannot compete.
 ## Full-body character (default)
 
 `FullBodyCharacterNode` loads one complete transparent sprite and applies manifest-defined
-position, normalized anchor, and scale. `FullBodyCharacterAnimator` keeps the approved image
-intact and presents idle, happy, dragging, sleep, walk-in-place, and dance using only root-level
-bobbing, small rotations, and squash-and-stretch. It does not claim independent limb, hair, eye,
-or mouth animation. Missing full-body artwork selects the layered/procedural path instead.
+position, normalized anchor, and scale. It nests the sprite under a `bodyPivot` at the feet
+(rotation and squash/stretch keep the shoes planted) and a `breathPivot` (breathing scale).
+An `effectsRoot` holds transient effects such as sleep bubbles. Missing full-body artwork
+selects the layered/procedural path instead.
+
+The optional manifest `fullBodyDisplay` controls how the sprite reaches the screen. It selects a
+named image variant (`"original"` is always `assets.fullBody`) and a sampling mode.
+Variants must keep the original's pixel dimensions; a missing variant falls back to the original.
+With `displayResampled`, `FullBodyCharacterNode.prepareTexture(pixelsPerSceneUnit:)` replaces the
+texture with an Accelerate Lanczos downsample (`SpriteResampler`) at the sprite's exact on-screen
+pixel height. This is needed because SpriteKit samples bilinearly and ignores mipmaps for
+non-power-of-two textures, so a 5–10× minified texture aliases into broken outlines and
+sparkling highlights.
+
+`CharacterScene.fitRenderArea(to:backingScale:)` derives that height. `CharacterView` refits
+whenever its size or backing properties change. The backing scale only chooses texture
+resolution; node sizes and positions stay in scene units and AppKit points.
+
+`FullBodyChoreography` (`FullBodyMotion.swift`) is pure value logic. For each `CharacterState`,
+it returns absolute keyframe tracks: body pose, optional breath, and optional expression. Each
+track has an intro and a loop, so loops cannot drift, and finite tracks mark one-shot reactions.
+`FullBodyCharacterAnimator` converts the tracks into keyed SpriteKit actions, one key per
+channel. Before every state, it resets all actions, baseline transforms, and the warp. It calls
+`reactionDidFinish` after a finite intro.
+
+Head tilt and hair secondary motion are seamless mesh warps of the single sprite. The optional
+manifest `fullBodyRig` registers:
+
+- the neck point and head blend height
+- the hair band and maximum amplitudes
+
+`FullBodyWarp` maps an expression to `SKWarpGeometryGrid` destination positions:
+
+- the head rotates about the neck with a smoothstep blend
+- only the outer hair bands sway
+- everything below the neck stays fixed
+
+Without a rig, the full-body animation is rigid. Eyes and mouth are never altered.
+`CharacterScene` exposes animation speed and an expressive-motion toggle for the Developer menu.
+
+`scripts/render-animation-previews.sh` compiles the real Behavior, Character, and Settings
+sources with an offscreen `SKRenderer` harness. It produces deterministic preview clips without
+launching AppKit.
 
 ## Layered character
 
@@ -51,6 +90,7 @@ defines:
 - render width and height;
 - an optional renderer mode (`layered` is the backward-compatible default);
 - an optional complete PNG with position, normalized anchor, and scale;
+- optional full-body display settings: sampling mode, selected variant, and variant PNGs;
 - optional PNG references for each layer and eye/mouth expression variants;
 - per-layer position, normalized anchor/pivot, draw order, scale, and optional animation anchor;
 - timing and amplitude values for idle, blink, happy, sleep, walk, and dance.
@@ -71,7 +111,7 @@ SwiftPM resource bundling. The packaging script copies SwiftPM resource bundles 
 The state machine remains the sole owner of exclusive poses:
 
 - idle and happy retain M0 click behavior;
-- sleep, walking, and dancing are selectable preview states;
+- sleep, walking, sway dancing, and hop dancing are selectable preview states;
 - a new preview interrupts the previous preview;
 - dragging a looping state restores that state on release;
 - dragging a happy reaction returns to idle;
@@ -96,6 +136,12 @@ and the nearly opaque interior becomes fully opaque, and recolors only partially
 contour pixels from adjacent opaque ink. Fully opaque pixels stay byte-identical to the source.
 It emits the runtime `full-body.png`, true-alpha and dark-background previews, and a
 source/cleaned comparison without reconstructing or reshaping the character.
+
+`scripts/generate-sleepy-coder-soft-sprite.py` derives the small-size `full-body-soft.png`
+variant from `full-body.png`. A continuous luminance curve, feathered by saturation, a hair line,
+and the eye boxes, compresses the hair gloss and lifts the cel shadows slightly. The eyes, skin,
+hoodie, ink lines, and alpha stay byte-identical. `scripts/render-display-previews.sh` renders
+every display option at each preset at 1× and 2× for side-by-side review.
 
 The retained experimental `scripts/generate-sleepy-coder-assets.py` extracts the flattened
 `parts.jpeg` board using a

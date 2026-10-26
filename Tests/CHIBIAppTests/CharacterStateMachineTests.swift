@@ -52,6 +52,27 @@ struct CharacterStateMachineTests {
     #expect(machine.handle(.dragEnded) == .dancing)
   }
 
+  @Test func hopDancePreviewCanBeDraggedSleptAndReplaced() {
+    var machine = CharacterStateMachine()
+    #expect(machine.handle(.previewRequested(.hopDance)) == .hopDancing)
+    #expect(machine.handle(.dragBegan) == .dragging)
+    #expect(machine.handle(.previewRequested(.dance)) == .dragging)
+    #expect(machine.handle(.dragEnded) == .hopDancing)
+    #expect(machine.handle(.clicked) == .hopDancing)
+    #expect(machine.handle(.sleepRequested) == .sleeping)
+    #expect(machine.handle(.previewRequested(.hopDance)) == .hopDancing)
+    #expect(machine.handle(.previewRequested(.idle)) == .idle)
+  }
+
+  @Test func everyPreviewAnimationMapsToADistinctState() {
+    var states: Set<String> = []
+    for animation in CharacterAnimation.allCases {
+      var machine = CharacterStateMachine()
+      states.insert(machine.handle(.previewRequested(animation)).rawValue)
+    }
+    #expect(states.count == CharacterAnimation.allCases.count)
+  }
+
   @Test func draggingInterruptsHappyPreviewToIdle() {
     var machine = CharacterStateMachine()
     machine.handle(.previewRequested(.happy))

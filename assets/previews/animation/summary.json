@@ -1,0 +1,122 @@
+{
+  "dragging": {
+    "frames": 53,
+    "size": [
+      420,
+      500
+    ],
+    "envelope": [
+      76,
+      32,
+      343,
+      480
+    ],
+    "edgeAlphaMax": 0,
+    "clipped": false
+  },
+  "happy": {
+    "frames": 38,
+    "size": [
+      420,
+      500
+    ],
+    "envelope": [
+      74,
+      17,
+      345,
+      480
+    ],
+    "edgeAlphaMax": 0,
+    "clipped": false
+  },
+  "hop-dance": {
+    "frames": 89,
+    "size": [
+      420,
+      500
+    ],
+    "envelope": [
+      65,
+      13,
+      354,
+      481
+    ],
+    "edgeAlphaMax": 0,
+    "clipped": false
+  },
+  "idle": {
+    "frames": 154,
+    "size": [
+      420,
+      500
+    ],
+    "envelope": [
+      78,
+      46,
+      341,
+      480
+    ],
+    "edgeAlphaMax": 0,
+    "clipped": false
+  },
+  "idle-rigid": {
+    "frames": 154,
+    "size": [
+      420,
+      500
+    ],
+    "envelope": [
+      78,
+      46,
+      341,
+      480
+    ],
+    "edgeAlphaMax": 0,
+    "clipped": false
+  },
+  "sleep": {
+    "frames": 204,
+    "size": [
+      420,
+      500
+    ],
+    "envelope": [
+      82,
+      37,
+      351,
+      483
+    ],
+    "edgeAlphaMax": 0,
+    "clipped": false
+  },
+  "sway-dance": {
+    "frames": 84,
+    "size": [
+      420,
+      500
+    ],
+    "envelope": [
+      64,
+      41,
+      355,
+      481
+    ],
+    "edgeAlphaMax": 0,
+    "clipped": false
+  },
+  "walk": {
+    "frames": 58,
+    "size": [
+      420,
+      500
+    ],
+    "envelope": [
+      75,
+      38,
+      343,
+      480
+    ],
+    "edgeAlphaMax": 0,
+    "clipped": false
+  }
+}

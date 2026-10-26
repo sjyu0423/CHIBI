@@ -12,6 +12,10 @@ protocol CharacterOverlayControlling: AnyObject {
   func setCharacterSize(_ size: CharacterSize)
   func resetPosition()
   func previewAnimation(_ animation: CharacterAnimation)
+  var supportsExpressiveMotion: Bool { get }
+  var isExpressiveMotionEnabled: Bool { get }
+  func setExpressiveMotionEnabled(_ enabled: Bool)
+  func setAnimationSpeed(_ speed: Double)
 }
 
 @MainActor
@@ -95,7 +99,22 @@ final class CharacterOverlayWindowController: NSWindowController, CharacterOverl
   }
 
   func previewAnimation(_ animation: CharacterAnimation) {
-    (characterView.scene as? CharacterRendering)?.previewAnimation(animation)
+    renderer?.previewAnimation(animation)
+  }
+
+  var supportsExpressiveMotion: Bool { renderer?.supportsExpressiveMotion ?? false }
+  var isExpressiveMotionEnabled: Bool { renderer?.isExpressiveMotionEnabled ?? false }
+
+  func setExpressiveMotionEnabled(_ enabled: Bool) {
+    renderer?.setExpressiveMotionEnabled(enabled)
+  }
+
+  func setAnimationSpeed(_ speed: Double) {
+    renderer?.setAnimationSpeed(speed)
+  }
+
+  private var renderer: CharacterRendering? {
+    characterView.scene as? CharacterRendering
   }
 
   func characterView(_ view: CharacterView, didMoveTo position: CGPoint) {

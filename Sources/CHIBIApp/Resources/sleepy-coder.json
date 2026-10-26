@@ -28,13 +28,31 @@
   "fullBodyLayout": {
     "position": {
       "x": 0,
-      "y": -8
+      "y": -24
     },
     "anchorPoint": {
       "x": 0.5,
       "y": 0.5
     },
     "scale": 0.41
+  },
+  "fullBodyRig": {
+    "neck": {
+      "x": 0.48,
+      "y": 0.46
+    },
+    "headBlendHeight": 0.07,
+    "maxHeadTilt": 0.035,
+    "hairTipY": 0.46,
+    "hairRootY": 0.72,
+    "maxHairSway": 0.014
+  },
+  "fullBodyDisplay": {
+    "sampling": "displayResampled",
+    "variant": "soft",
+    "variants": {
+      "soft": "Characters/sleepy-coder/full-body-soft.png"
+    }
   },
   "layers": [
     {
@@ -241,10 +259,10 @@
   ],
   "animations": {
     "idleBobHeight": 7.0,
-    "idleCycleDuration": 2.6,
+    "idleCycleDuration": 3.2,
     "blinkMinimumDelay": 2.1,
     "blinkDelayVariation": 2.8,
-    "happyHopHeight": 38.0,
+    "happyHopHeight": 30.0,
     "walkStepDuration": 0.3,
     "danceBeatDuration": 0.44,
     "sleepSwayDuration": 3.0

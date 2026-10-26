@@ -131,7 +131,7 @@ struct CharacterManifestTests {
   @Test func allRegisteredAssetsExistAndHaveAlpha() throws {
     let manifest = try CharacterAssetLoader.loadBundledDefault()
     let loader = CharacterAssetLoader.bundled
-    for path in manifest.assets.allFiles {
+    for path in manifest.allAssetFiles {
       let data = try Data(contentsOf: loader.assetURL(named: path))
       let representation = NSBitmapImageRep(data: data)
       #expect(representation != nil, "Unreadable registered asset: \(path)")
@@ -171,7 +171,7 @@ struct CharacterManifestTests {
     let dimensions = try CharacterAssetLoader.loadBundledDefault().renderDimensions
     for characterSize in CharacterSize.allCases {
       let view = characterSize.dimensions
-      scene.fitRenderArea(to: view)
+      scene.fitRenderArea(to: view, backingScale: 1)
       #expect(scene.size == dimensions.sceneSize(fitting: view))
       let letterboxedScale = min(view.width / dimensions.width, view.height / dimensions.height)
       let fittedScale = min(view.width / scene.size.width, view.height / scene.size.height)

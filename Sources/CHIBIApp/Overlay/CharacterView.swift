@@ -13,7 +13,17 @@ final class CharacterView: SKView {
 
   override func setFrameSize(_ newSize: NSSize) {
     super.setFrameSize(newSize)
-    (scene as? CharacterRendering)?.fitRenderArea(to: newSize)
+    fitSceneToView()
+  }
+
+  override func viewDidChangeBackingProperties() {
+    super.viewDidChangeBackingProperties()
+    fitSceneToView()
+  }
+
+  private func fitSceneToView() {
+    (scene as? CharacterRendering)?.fitRenderArea(
+      to: bounds.size, backingScale: window?.backingScaleFactor ?? 1)
   }
 
   override func hitTest(_ point: NSPoint) -> NSView? {
