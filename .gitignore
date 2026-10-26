@@ -1,4 +1,37 @@
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# SwiftPM / Xcode build output and per-user state
 .build/
+.swiftpm/
 DerivedData/
 *.xcuserstate
+xcuserdata/
+*.xcscmblueprint
+*.dSYM/
+*.dSYM.zip
+
+# Python tooling for asset generation
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Credentials and signing material
+.env
+.env.*
+*.p12
+*.pem
+*.key
+*.cer
+*.mobileprovision
+*.provisionprofile

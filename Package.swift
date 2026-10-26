@@ -11,7 +11,11 @@ let package = Package(
     .executableTarget(
       name: "CHIBIApp",
       path: "Sources/CHIBIApp",
-      resources: [.process("Resources")]
+      resources: [
+        .process("Resources/temporary-character.json"),
+        .process("Resources/sleepy-coder.json"),
+        .copy("Resources/Characters"),
+      ]
     ),
     .testTarget(
       name: "CHIBIAppTests",

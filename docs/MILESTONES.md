@@ -9,7 +9,7 @@
 - Menu-bar visibility, size, position reset, and quit controls
 - Local persistence, logic tests, packaging, and documentation
 
-## M1A — Character system and animation foundation (implemented; manual review pending)
+## M1A — Character system and animation foundation (complete)
 
 - Shared-root layered character with separate hair, head, face, eyes, torso, arms, and legs
 - Validated bundled character manifest and optional transparent PNG layer loading
@@ -20,13 +20,26 @@
 - Hidden-state rendering and hit-test timer suspension
 - Resource-aware application packaging and unit coverage
 
-M1A intentionally contains temporary procedural visuals. Completion acceptance requires the
-manual GUI checklist in `README.md` and review of replacement artwork when it becomes
-available.
+The procedural character remains the fallback implementation.
 
-## M1B and later (not started)
+## M1B — Real character integration (renderer recovery implemented; animation GUI review pending)
 
-M1B may explore music synchronization only after M1A is accepted and its privacy,
+- Sleepy Coder defaults to a faithful one-piece cutout of the approved master illustration.
+- The manifest selects `fullBody` or the retained experimental `layered` renderer.
+- Full-body animation uses whole-sprite bob, rotation, and squash-and-stretch only.
+- Reproducible soft-matte extraction produces transparent head, hair, body, limb, eye, and mouth
+  layers for the optional experimental renderer.
+- Character manifests control layer registration, pivots, ordering, and scale.
+- Closed-eye and mouth variants participate in the existing animation/state system.
+- Generated true-alpha, solid-contrast, and animation-extreme previews support asset review.
+- Resource registration, alpha, metadata, placement, and fallback behavior have unit coverage.
+
+The neutral full-body overlay has been visually smoke-tested. Acceptance still requires the
+menu-driven animation and input checklist at all three overlay sizes.
+
+## M1C and later (not started)
+
+Music synchronization may be explored only after M1B is accepted and its privacy,
 permission, and performance design is approved. Do not add audio capture as part of M1A.
 
 Costumes, networking, AI/LLM features, file access, accessibility automation, global

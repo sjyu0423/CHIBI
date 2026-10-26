@@ -11,6 +11,11 @@ final class CharacterView: SKView {
 
   override var acceptsFirstResponder: Bool { false }
 
+  override func setFrameSize(_ newSize: NSSize) {
+    super.setFrameSize(newSize)
+    (scene as? CharacterRendering)?.fitRenderArea(to: newSize)
+  }
+
   override func hitTest(_ point: NSPoint) -> NSView? {
     guard let renderer = scene as? CharacterRendering else { return nil }
     let scenePoint = convert(point, to: renderer.renderScene)

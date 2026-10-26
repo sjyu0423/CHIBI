@@ -5,12 +5,16 @@ import SpriteKit
 struct CharacterAssetLoader {
   private let bundle: Bundle
 
+  static var bundled: CharacterAssetLoader {
+    CharacterAssetLoader(bundle: .module)
+  }
+
   init(bundle: Bundle) {
     self.bundle = bundle
   }
 
   static func loadBundledDefault() throws -> CharacterManifest {
-    try CharacterAssetLoader(bundle: .module).loadManifest(named: "temporary-character")
+    try bundled.loadManifest(named: "sleepy-coder")
   }
 
   func loadManifest(named name: String) throws -> CharacterManifest {
@@ -22,17 +26,24 @@ struct CharacterAssetLoader {
   }
 
   func texture(named path: String) throws -> SKTexture {
+    let url = try assetURL(named: path)
+    guard let image = NSImage(contentsOf: url) else {
+      throw CharacterManifestError.unreadableAsset(path)
+    }
+    return SKTexture(image: image)
+  }
+
+  func assetURL(named path: String) throws -> URL {
     let file = path as NSString
     let subdirectory = file.deletingLastPathComponent
     let resource = (file.lastPathComponent as NSString).deletingPathExtension
     let directory = subdirectory == "." ? nil : subdirectory
     guard
       let url = bundle.url(
-        forResource: resource, withExtension: file.pathExtension, subdirectory: directory),
-      let image = NSImage(contentsOf: url)
+        forResource: resource, withExtension: file.pathExtension, subdirectory: directory)
     else {
       throw CharacterManifestError.unreadableAsset(path)
     }
-    return SKTexture(image: image)
+    return url
   }
 }

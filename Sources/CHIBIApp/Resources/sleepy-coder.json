@@ -1,0 +1,252 @@
+{
+  "identifier": "dev.chibi.sleepy-coder",
+  "displayName": "Sleepy Coder",
+  "renderDimensions": {
+    "width": 640,
+    "height": 760
+  },
+  "renderingMode": "fullBody",
+  "assets": {
+    "fullBody": "Characters/sleepy-coder/full-body.png",
+    "hairBack": "Characters/sleepy-coder/hair-back.png",
+    "leftLeg": "Characters/sleepy-coder/leg-left.png",
+    "rightLeg": "Characters/sleepy-coder/leg-right.png",
+    "torso": "Characters/sleepy-coder/torso.png",
+    "leftArm": "Characters/sleepy-coder/arm-left.png",
+    "rightArm": "Characters/sleepy-coder/arm-right.png",
+    "head": "Characters/sleepy-coder/head.png",
+    "face": "Characters/sleepy-coder/face.png",
+    "leftEye": "Characters/sleepy-coder/eye-left-open.png",
+    "rightEye": "Characters/sleepy-coder/eye-right-open.png",
+    "leftEyeClosed": "Characters/sleepy-coder/eye-left-closed.png",
+    "rightEyeClosed": "Characters/sleepy-coder/eye-right-closed.png",
+    "mouth": "Characters/sleepy-coder/mouth-neutral.png",
+    "mouthHappy": "Characters/sleepy-coder/mouth-happy.png",
+    "mouthSleep": "Characters/sleepy-coder/mouth-surprised.png",
+    "hairFront": "Characters/sleepy-coder/hair-front.png"
+  },
+  "fullBodyLayout": {
+    "position": {
+      "x": 0,
+      "y": -8
+    },
+    "anchorPoint": {
+      "x": 0.5,
+      "y": 0.5
+    },
+    "scale": 0.41
+  },
+  "layers": [
+    {
+      "layer": "shadow",
+      "position": {
+        "x": 0,
+        "y": -327
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "drawOrder": -10,
+      "scale": 1.0
+    },
+    {
+      "layer": "hairBack",
+      "position": {
+        "x": 0,
+        "y": 129
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "drawOrder": 0,
+      "scale": 0.88,
+      "animationAnchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "layer": "leftLeg",
+      "position": {
+        "x": -58,
+        "y": -202
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.82
+      },
+      "drawOrder": 10,
+      "scale": 0.64,
+      "animationAnchorPoint": {
+        "x": 0.5,
+        "y": 0.82
+      }
+    },
+    {
+      "layer": "rightLeg",
+      "position": {
+        "x": 58,
+        "y": -202
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.82
+      },
+      "drawOrder": 11,
+      "scale": 0.64,
+      "animationAnchorPoint": {
+        "x": 0.5,
+        "y": 0.82
+      }
+    },
+    {
+      "layer": "leftArm",
+      "position": {
+        "x": -108,
+        "y": -24
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.84
+      },
+      "drawOrder": 15,
+      "scale": 0.56,
+      "animationAnchorPoint": {
+        "x": 0.5,
+        "y": 0.84
+      }
+    },
+    {
+      "layer": "rightArm",
+      "position": {
+        "x": 108,
+        "y": -24
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.84
+      },
+      "drawOrder": 16,
+      "scale": 0.56,
+      "animationAnchorPoint": {
+        "x": 0.5,
+        "y": 0.84
+      }
+    },
+    {
+      "layer": "torso",
+      "position": {
+        "x": 0,
+        "y": -85
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "drawOrder": 20,
+      "scale": 0.72,
+      "animationAnchorPoint": {
+        "x": 0.5,
+        "y": 0.7
+      }
+    },
+    {
+      "layer": "head",
+      "position": {
+        "x": 0,
+        "y": 115
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "drawOrder": 40,
+      "scale": 0.9,
+      "animationAnchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    },
+    {
+      "layer": "face",
+      "position": {
+        "x": 0,
+        "y": 115
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "drawOrder": 50,
+      "scale": 1.0
+    },
+    {
+      "layer": "leftEye",
+      "position": {
+        "x": -75,
+        "y": 138
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "drawOrder": 60,
+      "scale": 0.92
+    },
+    {
+      "layer": "rightEye",
+      "position": {
+        "x": 75,
+        "y": 138
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "drawOrder": 61,
+      "scale": 0.74
+    },
+    {
+      "layer": "mouth",
+      "position": {
+        "x": 0,
+        "y": 56
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "drawOrder": 70,
+      "scale": 0.58
+    },
+    {
+      "layer": "hairFront",
+      "position": {
+        "x": -8,
+        "y": 150
+      },
+      "anchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "drawOrder": 80,
+      "scale": 0.88,
+      "animationAnchorPoint": {
+        "x": 0.5,
+        "y": 0.5
+      }
+    }
+  ],
+  "animations": {
+    "idleBobHeight": 7.0,
+    "idleCycleDuration": 2.6,
+    "blinkMinimumDelay": 2.1,
+    "blinkDelayVariation": 2.8,
+    "happyHopHeight": 38.0,
+    "walkStepDuration": 0.3,
+    "danceBeatDuration": 0.44,
+    "sleepSwayDuration": 3.0
+  }
+}

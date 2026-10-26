@@ -1,7 +1,13 @@
 import SpriteKit
 
 @MainActor
-final class CharacterAnimator {
+protocol CharacterAnimating: AnyObject {
+  var reactionDidFinish: (() -> Void)? { get set }
+  func play(state: CharacterState)
+}
+
+@MainActor
+final class CharacterAnimator: CharacterAnimating {
   private enum ActionKey {
     static let primary = "character.primary"
     static let blink = "character.blink"
@@ -61,6 +67,7 @@ final class CharacterAnimator {
   }
 
   private func playHappyReaction() {
+    character.setMouth(.happy)
     let hop = eased(
       .group([
         .moveBy(x: 0, y: configuration.happyHopHeight, duration: 0.14),
@@ -100,6 +107,7 @@ final class CharacterAnimator {
 
   private func playSleep() {
     character.setEyesClosed(true)
+    character.setMouth(.sleeping)
     let half = configuration.sleepSwayDuration / 2
     character.run(
       .repeatForever(
@@ -171,8 +179,17 @@ final class CharacterAnimator {
         wait,
         .run { [weak self] in
           guard let self else { return }
-          self.character.leftEyeRoot.run(self.blinkAction())
-          self.character.rightEyeRoot.run(self.blinkAction())
+          if self.character.hasClosedEyeAssets {
+            self.character.run(
+              .sequence([
+                .run { [weak self] in self?.character.setEyesClosed(true) },
+                .wait(forDuration: 0.075),
+                .run { [weak self] in self?.character.setEyesClosed(false) },
+              ]))
+          } else {
+            self.character.leftEyeRoot.run(self.blinkAction())
+            self.character.rightEyeRoot.run(self.blinkAction())
+          }
         },
       ]))
     character.run(blink, withKey: ActionKey.blink)

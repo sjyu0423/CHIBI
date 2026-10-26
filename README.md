@@ -1,13 +1,12 @@
 # CHIBI
 
-CHIBI is a native macOS desktop companion. Milestone 1A adds a replaceable, layered
-character renderer and expressive animation foundation while retaining the transparent,
-non-activating overlay from M0.
+CHIBI is a native macOS desktop companion. The default **Sleepy Coder** presentation uses a
+faithful transparent cutout of the approved complete front-facing illustration. The earlier
+part-by-part assembly remains available as an experimental manifest mode; the procedural
+character remains the final fallback.
 
-The bundled character is original procedural placeholder art. A validated JSON manifest
-can reference transparent PNG layers for hair, legs, torso, arms, head, face, eyes, and
-mouth. Missing images fall back to the procedural layer, so an incomplete art set remains
-usable during development.
+`sleepy-coder.json` selects either `fullBody` or `layered` rendering and defines artwork layout
+and animation timing. A missing full-body image falls back to the layered/procedural path.
 
 ## Requirements
 
@@ -15,6 +14,9 @@ usable during development.
 - Xcode 27.1 or matching Command Line Tools
 - Swift 6.4
 - No third-party packages
+
+The application has no runtime dependencies. Regenerating artwork requires Python with Pillow
+and NumPy.
 
 ## Build and run
 
@@ -47,7 +49,7 @@ one-shot happy reaction returns to idle.
 1. Launch `.build/CHIBI.app`; confirm the character and flower menu item appear without
    focusing the overlay.
 2. Preview Idle, Happy, Sleep, Walk in Place, and Dance; confirm each switches cleanly.
-3. Confirm idle has subtle breathing, independent head/hair motion, and varied blink timing.
+3. Confirm the default full-body idle has subtle bobbing and breathing without visual distortion.
 4. Click the character; confirm the happy hop completes and returns to idle.
 5. Drag during Idle, Sleep, Walk, and Dance; confirm the prior looping pose resumes.
 6. Drag between displays if available and confirm the character remains reachable.
@@ -58,3 +60,29 @@ one-shot happy reaction returns to idle.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for component boundaries and
 [docs/HANDOFF.md](docs/HANDOFF.md) for current verification status.
+
+## Character assets
+
+The original flattened sheets are in `assets/source/sleepy-coder`. Rebuild the approved
+full-character sprite and its transparent, dark-background, and source-comparison previews with:
+
+```sh
+python3 scripts/generate-sleepy-coder-full-sprite.py
+```
+
+The experimental part rig can still be regenerated separately with:
+
+```sh
+python3 scripts/generate-sleepy-coder-assets.py
+```
+
+Generated PNGs live in `Sources/CHIBIApp/Resources/Characters/sleepy-coder`. The full-character
+script cleans the single-figure RGBA export `base_character_transparent.png`: it keeps only the
+connected character silhouette, drops the faint matte halo, and does not reshape or reconstruct
+the artwork.
+
+To add another character, provide original or licensed artwork, create a validated manifest,
+place transparent PNGs under `Resources/Characters/<identifier>`, and add a reproducible export
+script when needed. For `fullBody`, register one PNG plus its position, normalized anchor, and
+scale. For `layered`, also provide per-layer placement, pivots, draw order, and scale. Add
+registration, fallback, and alpha-resource tests before switching defaults.

@@ -1,6 +1,11 @@
 import AppKit
 import SpriteKit
 
+enum CharacterLayerSource: Equatable {
+  case bundledAsset(String)
+  case proceduralFallback
+}
+
 @MainActor
 final class LayeredCharacterNode: SKNode {
   private let layoutRoot = SKNode()
@@ -20,6 +25,16 @@ final class LayeredCharacterNode: SKNode {
 
   let manifest: CharacterManifest
   private let assetLoader: CharacterAssetLoader?
+  private var sources: [CharacterManifest.Layer: CharacterLayerSource] = [:]
+  private var openEyeSprites: [SKSpriteNode] = []
+  private var closedEyeSprites: [SKSpriteNode] = []
+  private var mouthSprites: [MouthExpression: SKSpriteNode] = [:]
+
+  enum MouthExpression {
+    case neutral
+    case happy
+    case sleeping
+  }
 
   private var poseNodes: [SKNode] {
     [
@@ -34,8 +49,6 @@ final class LayeredCharacterNode: SKNode {
     super.init()
     name = "character-root"
     layoutRoot.name = "normalized-layout-root"
-    layoutRoot.xScale = manifest.renderDimensions.size.width / 210
-    layoutRoot.yScale = manifest.renderDimensions.size.height / 250
     addChild(layoutRoot)
     buildLayers()
   }
@@ -52,53 +65,171 @@ final class LayeredCharacterNode: SKNode {
       node.yScale = 1
     }
     setBaselinePositions()
+    setEyesClosed(false)
+    setMouth(.neutral)
   }
 
   func setEyesClosed(_ closed: Bool) {
+    if !closedEyeSprites.isEmpty {
+      for sprite in openEyeSprites {
+        sprite.isHidden = closed
+      }
+      for sprite in closedEyeSprites {
+        sprite.isHidden = !closed
+      }
+      leftEyeRoot.yScale = 1
+      rightEyeRoot.yScale = 1
+      return
+    }
     let scale: CGFloat = closed ? 0.08 : 1
     leftEyeRoot.yScale = scale
     rightEyeRoot.yScale = scale
   }
 
+  func setMouth(_ expression: MouthExpression) {
+    guard !mouthSprites.isEmpty else { return }
+    let resolved = mouthSprites[expression] == nil ? MouthExpression.neutral : expression
+    for (key, sprite) in mouthSprites {
+      sprite.isHidden = key != resolved
+    }
+  }
+
+  func source(for layer: CharacterManifest.Layer) -> CharacterLayerSource? {
+    sources[layer]
+  }
+
+  var hasClosedEyeAssets: Bool {
+    closedEyeSprites.count == 2
+  }
+
   private func buildLayers() {
-    let layers = [
-      shadowRoot, hairBackRoot, leftLegRoot, rightLegRoot, torsoRoot, leftArmRoot, rightArmRoot,
-      headRoot, faceRoot, leftEyeRoot, rightEyeRoot, mouthRoot, hairFrontRoot,
-    ]
-    for (index, layer) in layers.enumerated() {
-      layer.zPosition = CGFloat(index)
-      layoutRoot.addChild(layer)
+    for layout in manifest.resolvedLayers.sorted(by: { $0.drawOrder < $1.drawOrder }) {
+      let root = root(for: layout.layer)
+      root.zPosition = CGFloat(layout.drawOrder)
+      layoutRoot.addChild(root)
     }
     setBaselinePositions()
 
     buildShadow()
-    addLayer(path: manifest.assets.hairBack, to: hairBackRoot, fallback: buildHairBack)
-    addLayer(path: manifest.assets.leftLeg, to: leftLegRoot) { self.buildLeg(left: true) }
-    addLayer(path: manifest.assets.rightLeg, to: rightLegRoot) { self.buildLeg(left: false) }
-    addLayer(path: manifest.assets.torso, to: torsoRoot, fallback: buildTorso)
-    addLayer(path: manifest.assets.leftArm, to: leftArmRoot) { self.buildArm(left: true) }
-    addLayer(path: manifest.assets.rightArm, to: rightArmRoot) { self.buildArm(left: false) }
-    addLayer(path: manifest.assets.head, to: headRoot, fallback: buildHead)
-    addLayer(path: manifest.assets.face, to: faceRoot) {}
-    addLayer(path: manifest.assets.leftEye, to: leftEyeRoot) { self.buildEye(left: true) }
-    addLayer(path: manifest.assets.rightEye, to: rightEyeRoot) { self.buildEye(left: false) }
-    addLayer(path: manifest.assets.mouth, to: mouthRoot, fallback: buildMouth)
+    addLayer(.hairBack, path: manifest.assets.hairBack, to: hairBackRoot, fallback: buildHairBack)
+    addLayer(.leftLeg, path: manifest.assets.leftLeg, to: leftLegRoot) {
+      self.buildLeg(left: true)
+    }
+    addLayer(.rightLeg, path: manifest.assets.rightLeg, to: rightLegRoot) {
+      self.buildLeg(left: false)
+    }
+    addLayer(.torso, path: manifest.assets.torso, to: torsoRoot, fallback: buildTorso)
+    addLayer(.leftArm, path: manifest.assets.leftArm, to: leftArmRoot) {
+      self.buildArm(left: true)
+    }
+    addLayer(.rightArm, path: manifest.assets.rightArm, to: rightArmRoot) {
+      self.buildArm(left: false)
+    }
+    addLayer(.head, path: manifest.assets.head, to: headRoot, fallback: buildHead)
+    addLayer(.face, path: manifest.assets.face, to: faceRoot) {}
+    addEyeLayers()
+    addMouthLayers()
     if manifest.assets.face == nil {
       buildCheeks()
     }
-    addLayer(path: manifest.assets.hairFront, to: hairFrontRoot, fallback: buildHairFront)
+    addLayer(
+      .hairFront, path: manifest.assets.hairFront, to: hairFrontRoot, fallback: buildHairFront)
   }
 
-  private func addLayer(path: String?, to parent: SKNode, fallback: () -> Void) {
+  private func addLayer(
+    _ layer: CharacterManifest.Layer, path: String?, to parent: SKNode, fallback: () -> Void
+  ) {
     if let path, let texture = try? assetLoader?.texture(named: path) {
-      let sprite = SKSpriteNode(texture: texture)
-      sprite.size = CGSize(
-        width: sprite.size.width * 210 / manifest.renderDimensions.size.width,
-        height: sprite.size.height * 250 / manifest.renderDimensions.size.height)
-      sprite.name = path
+      let sprite = spriteNode(texture: texture, path: path, layer: layer)
       parent.addChild(sprite)
+      sources[layer] = .bundledAsset(path)
     } else {
       fallback()
+      sources[layer] = .proceduralFallback
+    }
+  }
+
+  private func addEyeLayers() {
+    addEye(
+      .leftEye, openPath: manifest.assets.leftEye, closedPath: manifest.assets.leftEyeClosed,
+      to: leftEyeRoot, left: true)
+    addEye(
+      .rightEye, openPath: manifest.assets.rightEye, closedPath: manifest.assets.rightEyeClosed,
+      to: rightEyeRoot, left: false)
+  }
+
+  private func addEye(
+    _ layer: CharacterManifest.Layer, openPath: String?, closedPath: String?, to root: SKNode,
+    left: Bool
+  ) {
+    guard let openPath, let openTexture = try? assetLoader?.texture(named: openPath) else {
+      buildEye(left: left)
+      sources[layer] = .proceduralFallback
+      return
+    }
+    let open = spriteNode(texture: openTexture, path: openPath, layer: layer)
+    root.addChild(open)
+    openEyeSprites.append(open)
+    sources[layer] = .bundledAsset(openPath)
+    if let closedPath, let texture = try? assetLoader?.texture(named: closedPath) {
+      let closed = spriteNode(texture: texture, path: closedPath, layer: layer)
+      closed.isHidden = true
+      root.addChild(closed)
+      closedEyeSprites.append(closed)
+    }
+  }
+
+  private func addMouthLayers() {
+    guard
+      let path = manifest.assets.mouth,
+      let texture = try? assetLoader?.texture(named: path)
+    else {
+      buildMouth()
+      sources[.mouth] = .proceduralFallback
+      return
+    }
+    let neutral = spriteNode(texture: texture, path: path, layer: .mouth)
+    mouthRoot.addChild(neutral)
+    mouthSprites[.neutral] = neutral
+    sources[.mouth] = .bundledAsset(path)
+    addMouthVariant(.happy, path: manifest.assets.mouthHappy)
+    addMouthVariant(.sleeping, path: manifest.assets.mouthSleep)
+  }
+
+  private func addMouthVariant(_ expression: MouthExpression, path: String?) {
+    guard let path, let texture = try? assetLoader?.texture(named: path) else { return }
+    let sprite = spriteNode(texture: texture, path: path, layer: .mouth)
+    sprite.isHidden = true
+    mouthRoot.addChild(sprite)
+    mouthSprites[expression] = sprite
+  }
+
+  private func spriteNode(
+    texture: SKTexture, path: String, layer: CharacterManifest.Layer
+  ) -> SKSpriteNode {
+    let layout = manifest.layout(for: layer)
+    let sprite = SKSpriteNode(texture: texture)
+    sprite.name = path
+    sprite.anchorPoint = layout.effectiveAnchorPoint
+    sprite.setScale(layout.scale)
+    return sprite
+  }
+
+  private func root(for layer: CharacterManifest.Layer) -> SKNode {
+    switch layer {
+    case .shadow: shadowRoot
+    case .hairBack: hairBackRoot
+    case .leftLeg: leftLegRoot
+    case .rightLeg: rightLegRoot
+    case .torso: torsoRoot
+    case .leftArm: leftArmRoot
+    case .rightArm: rightArmRoot
+    case .head: headRoot
+    case .face: faceRoot
+    case .leftEye: leftEyeRoot
+    case .rightEye: rightEyeRoot
+    case .mouth: mouthRoot
+    case .hairFront: hairFrontRoot
     }
   }
 
@@ -107,6 +238,7 @@ final class LayeredCharacterNode: SKNode {
     shadow.fillColor = NSColor.black.withAlphaComponent(0.14)
     shadow.strokeColor = .clear
     shadowRoot.addChild(shadow)
+    sources[.shadow] = .proceduralFallback
   }
 
   private func buildHairBack() {
@@ -226,19 +358,12 @@ final class LayeredCharacterNode: SKNode {
 
   private func setBaselinePositions() {
     position = .zero
-    shadowRoot.position = CGPoint(x: 0, y: -104)
-    hairBackRoot.position = CGPoint(x: 0, y: 35)
-    leftLegRoot.position = CGPoint(x: -22, y: -88)
-    rightLegRoot.position = CGPoint(x: 22, y: -88)
-    torsoRoot.position = CGPoint(x: 0, y: -55)
-    leftArmRoot.position = CGPoint(x: -46, y: -55)
-    rightArmRoot.position = CGPoint(x: 46, y: -55)
-    headRoot.position = CGPoint(x: 0, y: 34)
-    faceRoot.position = .zero
-    leftEyeRoot.position = CGPoint(x: -31, y: 31)
-    rightEyeRoot.position = CGPoint(x: 31, y: 31)
-    mouthRoot.position = CGPoint(x: 0, y: 7)
-    hairFrontRoot.position = CGPoint(x: 0, y: 74)
+    for layer in CharacterManifest.Layer.allCases {
+      let layout = manifest.layout(for: layer)
+      let node = root(for: layer)
+      node.position = layout.position.cgPoint
+      node.zPosition = CGFloat(layout.drawOrder)
+    }
   }
 }
 

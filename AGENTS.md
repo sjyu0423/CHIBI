@@ -4,9 +4,10 @@
 
 - `Sources/CHIBIApp/App`: application lifecycle only.
 - `Sources/CHIBIApp/Overlay`: AppKit window, hit testing, and drag coordination.
-- `Sources/CHIBIApp/Character`: manifests, asset loading, layered SpriteKit rendering,
+- `Sources/CHIBIApp/Character`: manifests, asset loading, full-body/layered SpriteKit rendering,
   and animation presentation.
-- `Sources/CHIBIApp/Resources`: bundled character manifests and licensed PNG layers.
+- `Sources/CHIBIApp/Resources`: bundled character manifests and licensed/generated PNG layers.
+- `assets/source`: original character sheets; `assets/previews`: generated assembly reviews.
 - `Sources/CHIBIApp/Behavior`: UI-independent character state machine.
 - `Sources/CHIBIApp/Settings`: persisted preferences and size definitions.
 - `Sources/CHIBIApp/MenuBar`: status-item commands and animation preview controls.
@@ -35,10 +36,13 @@ are required.
 - Reset keyed animation actions and baseline transforms before presenting a new pose.
 - Keep screen positions in AppKit points. Let `SKView` perform backing-scale conversion;
   do not manually multiply by Retina scale.
-- Keep character parts under the shared normalized layout root. PNG layer artwork must use
-  the documented layer registration points and transparent backgrounds.
-- Resolve character artwork through `CharacterAssetLoader`; missing layers must retain a
-  procedural fallback.
+- Select full-body versus layered rendering through the manifest. Full-body artwork uses
+  manifest-defined position, normalized anchor, and scale; layered PNGs additionally use
+  manifest-defined pivots and draw order.
+- Resolve character artwork through `CharacterAssetLoader`; a missing full-body image falls back
+  to the layered/procedural path, and missing layers retain procedural counterparts.
+- Treat generated character PNGs and their manifest as reproducible outputs of the matching
+  script under `scripts`; do not hand-adjust generated layers without updating the script.
 - Add protocols only at real substitution seams. `CharacterRendering` and
   `CharacterOverlayControlling` are the current seams.
 - Preserve click-through behavior outside the character silhouette and never make the
@@ -55,16 +59,14 @@ are required.
 
 ## Milestone boundary
 
-M1A includes the replaceable layered renderer, PNG/manifest pipeline, idle/blink/happy/
-sleep/walk/dance presentation, preview controls, tests, and documentation. It does not
-include music/audio capture, synchronization, costumes, networking, AI/LLM features, file
-access, accessibility automation, or global keystroke monitoring. Consult
-`docs/MILESTONES.md` before expanding scope.
+M1B integrates the Sleepy Coder artwork and metadata-driven registration. It does not include
+music/audio capture, synchronization, costumes, networking, AI/LLM features, file access,
+accessibility automation, or global keystroke monitoring. Consult `docs/MILESTONES.md` before
+expanding scope.
 
 ## Continuing in Codex or Cursor
 
 Start with `git status`, read this file and `docs/HANDOFF.md`, then run the verification
-commands. Work on `milestone-1a-character-system` until M1A is accepted. The repository
-currently has no commits, so preserve the untracked M0/M1A working tree. Record files
-touched, exact commands/results, known issues, and one concrete next step in the handoff.
-Do not commit or push without approval.
+commands. Work on `milestone-1b-character-integration` for M1B. Preserve source artwork and
+unrelated working-tree changes. Record files touched, exact commands/results, known issues,
+and one concrete next step in the handoff. Do not commit or push without approval.

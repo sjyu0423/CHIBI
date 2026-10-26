@@ -5,15 +5,29 @@ final class CharacterScene: SKScene, CharacterRendering {
   var renderScene: SKScene { self }
 
   private var stateMachine = CharacterStateMachine()
-  private let character: LayeredCharacterNode
-  private let animator: CharacterAnimator
+  private let character: SKNode
+  private let manifest: CharacterManifest
+  private let animator: any CharacterAnimating
 
   override init() {
     let loader = CharacterAssetLoader(bundle: .module)
-    let manifest = (try? loader.loadManifest(named: "temporary-character")) ?? .proceduralFallback
-    let character = LayeredCharacterNode(manifest: manifest, assetLoader: loader)
+    let manifest = (try? CharacterAssetLoader.loadBundledDefault()) ?? .proceduralFallback
+    let character: SKNode
+    let animator: any CharacterAnimating
+    if manifest.resolvedRenderingMode == .fullBody,
+      let fullBody = FullBodyCharacterNode(manifest: manifest, assetLoader: loader)
+    {
+      character = fullBody
+      animator = FullBodyCharacterAnimator(
+        character: fullBody, configuration: manifest.animations)
+    } else {
+      let layered = LayeredCharacterNode(manifest: manifest, assetLoader: loader)
+      character = layered
+      animator = CharacterAnimator(character: layered, configuration: manifest.animations)
+    }
     self.character = character
-    animator = CharacterAnimator(character: character, configuration: manifest.animations)
+    self.manifest = manifest
+    self.animator = animator
 
     super.init(size: manifest.renderDimensions.size)
     scaleMode = .aspectFit
@@ -33,9 +47,20 @@ final class CharacterScene: SKScene, CharacterRendering {
     nil
   }
 
+  override func didMove(to view: SKView) {
+    fitRenderArea(to: view.bounds.size)
+  }
+
+  func fitRenderArea(to viewSize: CGSize) {
+    let fitted = manifest.renderDimensions.sceneSize(fitting: viewSize)
+    if size != fitted {
+      size = fitted
+    }
+  }
+
   func containsCharacter(point: CGPoint) -> Bool {
     let local = character.convert(point, from: self)
-    let dimensions = character.manifest.renderDimensions.size
+    let dimensions = manifest.renderDimensions.size
     let headOffset = CGPoint(x: local.x, y: local.y - dimensions.height * 0.136)
     let isInsideHead =
       pow(headOffset.x / (dimensions.width * 0.367), 2)
@@ -80,7 +105,10 @@ extension CharacterManifest {
     identifier: "dev.chibi.procedural-fallback",
     displayName: "Procedural Fallback",
     renderDimensions: RenderDimensions(width: 210, height: 250),
+    renderingMode: .layered,
     assets: AssetReferences(),
+    fullBodyLayout: nil,
+    layers: nil,
     animations: .standard
   )
 }

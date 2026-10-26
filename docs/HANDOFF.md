@@ -2,170 +2,213 @@
 
 ## Status
 
-- Current milestone: M1A — Character System and Animation Foundation
-- Branch: `milestone-1a-character-system`
-- Repository: unborn (no commits exist); the complete M0 plus M1A working tree is untracked
-- Commits/pushes: none
-- Implementation status: code/build/tests/package checks complete; manual GUI review pending
+- Current work: M1B overlay black-line fix (SpriteKit letterbox); full-body sprite previously
+  replaced from `base_character_transparent.png`
+- Branch: `milestone-1b-character-integration`
+- Baseline: committed M1A at `a6cad3e`; all M1B work remains uncommitted
+- Commits/pushes this session: none
+- Source artwork under `assets/source/sleepy-coder` remains unmodified
+  (`base_character_transparent.png` SHA-256 `10d0adcb...7118eaa3`, unchanged after generation)
+- Default renderer: `fullBody`; prior layered assembly retained as experimental fallback
 
-The requested branch was created without discarding or stashing the untracked M0 files. Because
-there is no M0 commit, Git cannot represent a historical M0 branch point; the previous unborn
-branch name has no durable ref, and the current working tree is the only copy of the implementation.
+## Overlay black lines (2026-10-26)
 
-## Completed
+Symptom: thin black horizontal lines at the top and bottom edges of the desktop overlay.
 
-- Replaced the monolithic placeholder scene with a shared-root layered character:
-  shadow, back/front hair, left/right legs, torso, left/right arms, head, face, left/right
-  eyes, and mouth.
-- Added a 210x250 normalized reference layout that scales to manifest render dimensions.
-- Added a Codable/validated character manifest with identifier, display name, dimensions,
-  optional PNG references, and animation configuration.
-- Added module-bundle PNG texture loading with per-layer procedural fallback and a complete
-  fallback manifest when the bundled manifest cannot be loaded.
-- Added reusable, interruptible SpriteKit presentations for idle breathing/bobbing,
-  randomized blinking, happy reaction, sleep, walk in place, and dance.
-- Extended the pure state machine for walking/dancing preview states and deterministic drag
-  interruption/restoration.
-- Added an Animation Preview submenu to the existing flower menu.
-- Preserved overlay scaling, positioning, approximate silhouette hit testing, direct dragging,
-  settings persistence, and non-key/non-main behavior.
-- Reduced continuous work to 30 fps, enabled non-visible-node culling, and paused both
-  SpriteKit and the local hit-test timer while hidden.
-- Added SwiftPM resources and fixed app packaging so the resource bundle is placed at
-  `Contents/Resources`.
-- Increased unit coverage from 7 to 14 tests.
+Root cause: SpriteKit `.aspectFit` letterboxing, not the image or AppKit. The scene was the
+manifest's 640×760 (aspect 0.8421), but the overlay windows are 150×180, 210×250 and 285×340
+(aspects 0.8333, 0.8400, 0.8382). Each window is slightly taller than the scene, so `.aspectFit`
+left bars at the top and bottom of 0.94 pt (Small), 0.31 pt (Medium) and 0.78 pt (Large).
+`SKView` paints those bars opaque black even with `allowsTransparency = true` and a clear scene
+background.
 
-## Decisions
+How it was isolated before changing code:
 
-- Behavior state remains independent of SpriteKit. The state machine chooses the exclusive pose;
-  `CharacterAnimator` only presents it.
-- A pose reset removes actions and restores baseline transforms before every transition.
-- Each PNG is optional. Missing/unreadable files fall back only that layer, enabling incremental
-  art integration.
-- Resource paths are constrained to relative PNG paths inside `Bundle.module`; absolute paths,
-  parent traversal, and other formats are rejected.
-- The temporary character remains procedural and original. No external or copyrighted art was
-  introduced.
-- Walk and dance are preview-only M1A states. No music/audio capture or synchronization was added.
+- Packaged PNG: 4 px fully transparent margin on every side, and the sprite spans only scene
+  y −336…320 of ±380, so it cannot reach the window edges.
+- AppKit: borderless, `isOpaque = false`, clear background, no shadow, `SKView` as the content
+  view; no borders, boxes, layers, or separators are drawn.
+- SpriteKit: no debug overlays (`shows*`), no `SKShapeNode` in full-body mode, no cropping or
+  effect nodes; scene background is clear.
+- Screen Recording permission is not granted, so the live app window could not be captured
+  (`screencapture -l` failed; computer-use is waiting for permission). Instead, a harness
+  (`.build/overlay-capture/harness.swift`, not part of the app) reproduced the exact window,
+  `SKView`, and scene configuration with the packaged sprite and captured its own windows using
+  `CGWindowListCreateImage`. Before the fix: Small and Large had one full-width row of opaque
+  black (alpha 255, RGB 0) at both the first and last pixel row; all rows between them and the
+  character were fully transparent. Medium's 0.31 pt bar rounded away at the harness's 1×
+  capture but covers ~0.6 px on a 2× display.
 
-## Files modified
+Fix (no artwork, size, position, or animation changes):
 
-Existing files changed:
+- `CharacterManifest.RenderDimensions.sceneSize(fitting:)` expands the render area to the view's
+  exact aspect ratio, never shrinking either dimension (640×768, 640×761.9, 640×763.5).
+- `CharacterScene.didMove(to:)` and new `fitRenderArea(to:)` apply it; `CharacterView`
+  overrides `setFrameSize` so Small/Medium/Large changes refit. `fitRenderArea(to:)` was added to
+  the `CharacterRendering` seam.
+- After the fix, the harness shows every edge row and column fully transparent at all three
+  sizes, both when presented at a size and when resized from Medium via `window.setFrame`. The
+  character's pixels are identical to the letterboxed rendering (max diff 0), so size and
+  position are unchanged. Character bounds leave clear margins (Small: rows 15–167 of 180;
+  Large: rows 28–318 of 340), and the taller scene adds a little headroom for the happy hop.
 
-- `Package.swift`
-- `README.md`
-- `AGENTS.md`
-- `Sources/CHIBIApp/Behavior/CharacterStateMachine.swift`
-- `Sources/CHIBIApp/Character/CharacterRendering.swift`
-- `Sources/CHIBIApp/Character/CharacterScene.swift`
-- `Sources/CHIBIApp/MenuBar/MenuBarController.swift`
-- `Sources/CHIBIApp/Overlay/CharacterOverlayWindowController.swift`
-- `Tests/CHIBIAppTests/CharacterStateMachineTests.swift`
-- `scripts/build-app.sh`
-- `docs/ARCHITECTURE.md`
-- `docs/MILESTONES.md`
-- `docs/HANDOFF.md`
+## Renderer recovery
 
-New files:
+- Added `renderingMode` to the manifest with `layered` as the decoding default for compatibility.
+- Added full-body asset metadata: PNG path, position, normalized anchor, and positive scale.
+- Added `FullBodyCharacterNode` and `FullBodyCharacterAnimator`.
+- `CharacterScene` selects the requested renderer and falls back to layered/procedural rendering
+  when a registered full-body image cannot load.
+- Introduced the real `CharacterAnimating` substitution seam shared by both animators.
+- The full-body animator presents idle, happy, dragging, sleep, walking in place, and dance using
+  only whole-sprite bobbing, small rotations, and squash-and-stretch. It does not independently
+  animate limbs, hair, eyes, or mouth.
 
-- `Sources/CHIBIApp/Character/CharacterAnimator.swift`
-- `Sources/CHIBIApp/Character/CharacterAssetLoader.swift`
-- `Sources/CHIBIApp/Character/CharacterManifest.swift`
-- `Sources/CHIBIApp/Character/LayeredCharacterNode.swift`
-- `Sources/CHIBIApp/Resources/temporary-character.json`
-- `Tests/CHIBIAppTests/CharacterManifestTests.swift`
+## Artwork process and results
 
-## Verification
+Run (requires Pillow and NumPy; neither system Python has them, so this session used a throwaway
+venv at `.build/artvenv`):
 
-Host on 2026-10-25:
+```sh
+/opt/homebrew/bin/python3 -m venv .build/artvenv && .build/artvenv/bin/pip install pillow numpy
+.build/artvenv/bin/python scripts/generate-sleepy-coder-full-sprite.py
+```
 
-- macOS 27.0.1 (build 26A434)
-- Xcode 27.1 (build 27A9275)
-- Swift 6.4 (`swiftlang-6.4.0.34.1`)
+The script now uses `assets/source/sleepy-coder/base_character_transparent.png`. (The request
+named it `.jpeg`; the file on disk is a real 952×1652 8-bit RGBA PNG.) It contains only the single
+front-facing character with no checkerboard, neighboring views, swatches, or printed ground line.
+Its matte had three defects that the script fixes without touching the drawn artwork:
 
-Exact results:
+- The interior alpha was 253/254 rather than 255 (1,677 fully opaque pixels in total), so the
+  character was very slightly see-through. Alpha is remapped linearly: ≤16 becomes 0, ≥240
+  becomes 255.
+- A faint low-alpha halo (~16k pixels at alpha 1–16, about 21% of them near-white) surrounded
+  the ink outline and showed as a pale ring on dark desktops. It is removed by the remap.
+- Near-invisible residue sat below the shoes and against the left canvas edge. Only the largest
+  connected silhouette (source alpha ≥24, dilated 2 px for antialiasing) is kept.
+
+Partially transparent contour pixels take their color from adjacent opaque artwork (the black ink
+outline). Every fully opaque pixel is byte-identical to the source RGB (verified at offset
+x −4, y +30). The cleaned image is cropped to its alpha bounds and padded 4 px on a transparent
+canvas, which adds space on the left where the hair outline came within 1 px of the source edge.
+
+Outputs:
+
+- `Sources/CHIBIApp/Resources/Characters/sleepy-coder/full-body.png` — 955×1599 RGBA
+- `assets/previews/sleepy-coder-full-body.png` — true transparent preview
+- `assets/previews/sleepy-coder-full-body-dark.png` — solid dark (24, 24, 28) background preview
+- `assets/previews/sleepy-coder-full-body-comparison.png` — source vs cleaned, both on dark
+
+The old plum `sleepy-coder-full-body-contrast.png` showed the previous sprite and is no longer
+produced, so it was deleted. `chibi_transparent.jpeg` is no longer used by any script.
+
+Manifest `fullBodyLayout.scale` changed from 0.6 to 0.41 so the on-screen size stays the same
+(old 1093 × 0.6 ≈ 656 pt tall; new 1599 × 0.41 ≈ 656 pt). Position (0, −8) and anchor are
+unchanged, so the render-relative hit-test silhouette still lines up. The same scale is written by
+`generate-sleepy-coder-assets.py` so regenerating the layered rig keeps it.
+
+The older `generate-sleepy-coder-assets.py`, its layer PNGs, and assembly previews remain for the
+experimental `layered` mode. That rig is not the visual default.
+
+## Verification (2026-10-26, overlay black-line fix)
 
 - `xcrun swift-format lint -r Sources Tests Package.swift`: passed with no findings.
-- `swift build` in the managed execution sandbox: blocked before source compilation because the
-  sandbox cannot write the default Clang cache and cannot create SwiftPM's nested sandbox.
-- `env CLANG_MODULE_CACHE_PATH=/tmp/chibi-clang-cache SWIFTPM_MODULECACHE_OVERRIDE=/tmp/chibi-swiftpm-cache swift build --disable-sandbox`:
-  passed.
-- The same environment plus `swift test --disable-sandbox`: 14/14 tests passed in 3 suites.
-- `env CHIBI_DISABLE_SWIFTPM_SANDBOX=1 CLANG_MODULE_CACHE_PATH=/tmp/chibi-clang-cache SWIFTPM_MODULECACHE_OVERRIDE=/tmp/chibi-swiftpm-cache scripts/build-app.sh`:
-  release app build passed.
-- `plutil -lint Support/Info.plist .build/CHIBI.app/Contents/Info.plist`: passed.
-- `codesign --verify --deep --strict --verbose=2 .build/CHIBI.app`: passed.
-- Mach-O inspection: arm64 executable.
-- Resource check: bundled `temporary-character.json` exists under the packaged
-  `CHIBI_CHIBIApp.bundle`.
-- Launch smoke: `open .build/CHIBI.app` succeeded, the packaged CHIBI process remained running,
-  and it was stopped after the check.
-- Manual visual/menu/input behavior: not performed. The launch check confirms process viability,
-  not rendering quality or interaction correctness.
+- `swift build`: passed.
+- `swift test`: 25/25 tests passed in 3 suites. New tests:
+  `sceneSizeMatchesEveryOverlayAspectWithoutShrinkingRenderArea` (every `CharacterSize` gets an
+  exact-aspect scene that contains the 640×760 render area) and
+  `sceneFitsRenderAreaToViewWithoutChangingCharacterScale` (`CharacterScene.fitRenderArea`
+  applies it and the effective view scale equals the old letterboxed scale).
+- Harness captures (`.build/overlay-capture/`): before = black edge rows at Small and Large;
+  after = transparent edges at all sizes, presented and resized; character pixels unchanged.
+  Comparison image: `.build/overlay-capture/before-after.png`.
+- `scripts/build-app.sh`: passed; `codesign --verify --deep --strict` passed; packaged sprite is
+  unchanged (`07df50ae...`).
+- Relaunched `.build/CHIBI.app` (quit the older instance); it stayed running. The live overlay
+  window itself was not visually inspected because Screen Recording permission is unavailable to
+  the agent — see the manual test below.
 
-## Manual GUI checklist
+## Verification (2026-10-26, base_character_transparent replacement)
 
-1. Launch the packaged app and confirm the layered chibi and flower menu item appear without
-   making the overlay key or main.
-2. Confirm Idle is subtle: smooth bob/breath, independent head/hair movement, and varied but
-   synchronized blinking.
-3. Preview Happy, Sleep, Walk in Place, and Dance; switch rapidly between them and confirm no
-   transforms/actions leak between poses.
-4. Confirm Happy completes back to Idle.
-5. Drag during Sleep, Walk, and Dance and confirm the prior looping pose resumes; drag during
-   Happy and confirm release returns to Idle.
-6. Confirm transparent corners click through while the approximate character silhouette remains
-   draggable/clickable.
-7. Test Show/Hide and confirm the character resumes cleanly after being paused.
-8. Test all sizes, Reset Position, saved position/visibility/size after relaunch, and multi-display
-   clamping if multiple displays are available.
-9. Confirm Quit CHIBI exits normally.
+- Generator: passed; produced the sprite and three previews. A second run gave byte-identical
+  output (SHA-256 `07df50ae...b738a6c`).
+- Format: `file` and `sips` report PNG, 955×1599, 8-bit RGBA, `hasAlpha: yes`.
+- Alpha: 507,553 pixels at 0 (33.2%), 1,009,197 at 255, 10,295 partial contour pixels; range
+  0–255. No alpha-0 pixel has non-zero RGB, so no hidden background data remains.
+- No background or rectangle: all four image borders and the 4 px margin are fully transparent.
+  All visible pixels form one connected component, so there are no specks or neighboring figures.
+- Fringe: 0 contour pixels have luminance >180; mean contour luminance is 4.9 (dark ink).
+  Zoomed hair, ahoge, hand, and shoe edges on dark and white backgrounds show no pale halo.
+- Bottom line: the lowest 25 visible rows contain exactly two separate runs (the two shoe soles'
+  ink outlines), with nothing spanning the gap between the feet and nothing below them.
+- `xcrun swift-format lint -r Sources Tests Package.swift`: passed with no findings.
+- `swift build`: passed (it must run outside the agent sandbox because SwiftPM's own
+  `sandbox-exec` cannot nest).
+- `swift test`: 23/23 tests passed in 3 suites. New test:
+  `bundledFullBodySpriteFitsRenderDimensions` checks that the sprite fits inside the 640×760 render
+  area at its manifest scale and position.
+- `scripts/build-app.sh`: release build and ad-hoc signing passed; `codesign --verify --deep
+  --strict` passed; packaged `Info.plist` passes `plutil -lint`.
+- Packaged `full-body.png`: present, 955×1599, alpha on; SHA-256 matches the source resource.
+  Packaged `sleepy-coder.json` contains scale 0.41.
+- Launch smoke: quit an older running instance (still holding the previous sprite), relaunched
+  `.build/CHIBI.app`, and it stayed running. No screenshot was taken because the Accessibility and
+  Screen Recording permissions it needs were not granted, so on-screen appearance at each size has
+  not been checked yet.
 
-## Production artwork requirements
+Tests cover renderer-mode backward compatibility, full-body metadata validation, required asset
+registration, PNG alpha/resource presence, full-body sprite fit, full-body loading,
+missing-sprite fallback, layered fallback, state transitions, and settings persistence.
 
-No production artwork is present. Supply original or properly licensed transparent PNG layers for
-the manifest fields below:
+## Files touched this session
 
-- `hairBack`
-- `leftLeg`, `rightLeg`
-- `torso`
-- `leftArm`, `rightArm`
-- `head`
-- optional non-eye facial detail layer `face`
-- `leftEye`, `rightEye`
-- `mouth`
-- `hairFront`
+Black-line fix:
 
-Artwork contract:
+- `Sources/CHIBIApp/Character/CharacterManifest.swift` (`RenderDimensions.sceneSize(fitting:)`)
+- `Sources/CHIBIApp/Character/CharacterRendering.swift` (`fitRenderArea(to:)`)
+- `Sources/CHIBIApp/Character/CharacterScene.swift` (`didMove(to:)`, `fitRenderArea(to:)`)
+- `Sources/CHIBIApp/Overlay/CharacterView.swift` (`setFrameSize` refit)
+- `Tests/CHIBIAppTests/CharacterManifestTests.swift` (two scene-fit tests)
+- `docs/ARCHITECTURE.md`, this handoff
 
-- Design against the manifest's render dimensions (the temporary manifest is 210x250).
-- Use transparent backgrounds and tightly cropped layer images.
-- Center each cropped image on its layer registration point in the reference coordinate space:
-  hair back (0,35), legs (-22,-88)/(22,-88), torso (0,-55), arms (-46,-55)/(46,-55),
-  head (0,34), face (0,0), eyes (-31,31)/(31,31), mouth (0,7), front hair (0,74).
-- Keep neutral-pose limb/head art compatible with small translations/scales; current animation
-  does not require sprite sheets.
-- Add each PNG to `Sources/CHIBIApp/Resources`, set its relative path in the manifest, and run
-  the package/resource/GUI checks above.
-- Provide visual design review for silhouette, pivots, cropping, expression alignment, and all
-  three overlay sizes.
+Earlier sprite replacement:
+
+- `scripts/generate-sleepy-coder-full-sprite.py` (rewritten for the RGBA source)
+- `scripts/generate-sleepy-coder-assets.py` (full-body scale 0.41)
+- `Sources/CHIBIApp/Resources/sleepy-coder.json` (full-body scale 0.41)
+- `Sources/CHIBIApp/Resources/Characters/sleepy-coder/full-body.png` (regenerated)
+- `Tests/CHIBIAppTests/CharacterManifestTests.swift` (fit test)
+- `assets/previews/sleepy-coder-full-body.png`, `-dark.png`, `-comparison.png` (regenerated/new);
+  `-contrast.png` deleted
+- `README.md`, `docs/ARCHITECTURE.md`, this handoff
 
 ## Known limitations
 
-- The procedural layers are intentionally temporary and are not production-quality anime art.
-- No actual PNG character set was available, so PNG decoding/registration still needs an
-  end-to-end visual check when real art is added.
-- Layer registration points are currently code-defined; the manifest controls references,
-  dimensions, and animation timing but not per-layer offsets/pivots.
-- Mouse hit testing remains an approximate head/body silhouette rather than per-pixel alpha.
-- Preview selection is a development control and is not persisted.
-- GUI appearance, menu interaction, click-through, dragging, multi-display behavior, and visual
-  animation quality require the manual checklist.
-- The app is ad-hoc signed for local development only; distribution signing/notarization is out
-  of scope.
+- Full-body mode cannot provide independent limb or secondary hair motion.
+- Blink and mouth overlays are disabled in full-body mode because the available parts-sheet assets
+  do not register accurately enough against the approved master. The eyes and neutral expression
+  remain exactly as illustrated.
+- Walk and dance are stylized whole-character in-place transforms, not articulated walk cycles.
+- The runtime texture is 955×1599 and is drawn at 0.41 scale. That is sharp on Retina, but it uses
+  more texture memory than a pre-downscaled export would.
+- Per-pixel alpha hit testing is not implemented; the existing approximate silhouette is retained.
+- The app is locally ad-hoc signed, not distribution signed/notarized.
 
-## Exact next step
+## Remaining manual GUI checklist
 
-Perform the manual GUI checklist on the packaged app. If it passes, source or create the licensed
-PNG layer set above and validate it through the manifest pipeline before accepting M1A. Do not
-begin M1B music synchronization.
+1. Black-line check: on a light wallpaper (lines are most visible there), switch the menu size to
+   Small, Medium, and Large. Zoom in on the overlay's top and bottom edges (Accessibility > Zoom or
+   a screenshot at 400%). Expect no horizontal line at any size, and the hair tuft and shoe soles
+   fully visible. Repeat on a Retina and a non-Retina display if both are available.
+   Also inspect hair outline, hands, and shoe soles on a dark wallpaper.
+2. Preview Happy, Sleep, Walk in Place, and Dance from the menu and confirm whole-sprite transforms
+   interrupt and reset without clipping or cumulative drift.
+3. Confirm click reaction returns to idle; confirm drag interruption/restoration for looping states.
+4. Confirm approximate silhouette hit testing and transparent-corner pass-through.
+5. Exercise Show/Hide, size, reset-position, persistence, multi-display clamping, and Quit.
+
+## Recommended next step
+
+Run manual checklist item 1 on the relaunched app (`open .build/CHIBI.app`) to confirm the black
+lines are gone in the live overlay at all three sizes, then complete the animation/input items.
+Keep music capture and AI work out of scope until this renderer is accepted.
