@@ -2,16 +2,32 @@
 
 ## Status
 
-- Current work: small-size visual optimization of the full-body sprite, on top of the M2A
-  animation foundation, both on `milestone-2a-animation` (uncommitted)
+- Current work: M2A checkpoint finalized. The animation foundation and small-size rendering are
+  committed on `milestone-2a-animation` and are under review in a pull request.
+- M2A commit: `2660740aabb789023360dfdc3f02c6bc2afdb014` ("feat: M2A full-body animation
+  foundation and small-size rendering"; 59 files). This handoff update follows it as a docs-only
+  commit.
+- Pull request: https://github.com/sjyu0423/CHIBI/pull/1 (`milestone-2a-animation` → `main`).
+  It's open and not merged; merging waits for the manual desktop review checklist.
 - Stable baseline: `fde39eae0bcd28e5eae072286a2164fbd0284b65`
   - `main`, `milestone-1b-character-integration`, and annotated tag `v0.1-character-baseline`
     (tag object `234b831d`) all point at it
 - Remote: `origin` = https://github.com/sjyu0423/CHIBI (public; the owner chose to keep it public)
   - `main` (tracking `origin/main`) and the tag are pushed and verified with `git ls-remote`
+  - `milestone-2a-animation` is pushed and tracks `origin/milestone-2a-animation`
   - The M1A and M1B milestone branches exist only locally
-- Commits this session: the M1B baseline commit (`fde39ea`) and the tag. All M2A work is
-  uncommitted and not pushed. Do not merge M2A into `main` without approval.
+- Commits:
+  - M1B baseline `fde39ea` plus the tag
+  - M2A `2660740` plus this handoff update
+- Nothing was force-pushed. `main` and `v0.1-character-baseline` are unchanged on the remote.
+  Do not merge M2A into `main` without approval.
+- Final checks before the M2A commit:
+  - `xcrun swift-format lint -r Sources Tests Package.swift`: no findings
+  - `swift build`: passed
+  - `swift test`: 46/46 passed
+- Before committing, verified that no caches, captures, or secrets were included. The harness
+  output and the Python venv stay in the ignored `.build/`. The committed review previews total
+  18 MB, and the largest file is 2 MB.
 - Source artwork under `assets/source/sleepy-coder` is unmodified. The approved sprite
   (`full-body.png`, SHA-256 `07df50ae...`) is unchanged.
 
@@ -451,5 +467,6 @@ permissions are not granted to the agent.
 ## Recommended next step
 
 Run the manual review checklist on `open .build/CHIBI.app`, starting with item 0 (choose soft or
-original on the real desktop), then items 2, 4, and 5 (hop feel and warp quality). Then decide whether to commit M2A on `milestone-2a-animation` and push
-that branch for review. Do not merge into `main` until it's accepted.
+original on the real desktop), then items 2, 4, and 5 (hop feel and warp quality). Record the
+results on https://github.com/sjyu0423/CHIBI/pull/1. Merge into `main` only after approval.
+Music and audio work stays out of scope until then.
