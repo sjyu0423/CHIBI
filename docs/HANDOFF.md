@@ -2,9 +2,10 @@
 
 ## Status
 
-- Current work: M2B music-reactive dancing, implemented and uncommitted on
-  `milestone-2b-music-reactive-dancing`. That branch was created from M2A (`be4716c`), so it
-  contains every M2A animation and rendering change. Nothing was committed or pushed.
+- Current work: M2B music-reactive dancing, committed as `6d1818e` on
+  `milestone-2b-music-reactive-dancing` and pushed to `origin` (no pull request yet). That
+  branch was created from M2A (`be4716c`), so it contains every M2A animation and rendering
+  change.
 - [PR #1](https://github.com/sjyu0423/CHIBI/pull/1) (M2A → `main`) is still open and unmerged.
   `main` and `v0.1-character-baseline` are untouched.
 - See "M2B music-reactive dancing" below for design, verification, and the manual music
@@ -260,7 +261,7 @@ The details are in `docs/ARCHITECTURE.md` › Music reaction. Summary:
 - Previews: `assets/previews/animation/music-reactive.gif` (3.9 MB),
   `music-reactive-filmstrip.png`, `music-reactive-timeline.txt`, `summary.json`.
 - Docs: `AGENTS.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/MILESTONES.md`, this handoff.
-- Not committed: everything above. Throwaway harnesses live in the ignored
+- Committed in `6d1818e` and pushed. Throwaway harnesses live in the ignored
   `.build/capture-probe/`.
 
 ## M2A checkpoint
@@ -730,7 +731,7 @@ permissions are not granted to the agent.
 ## Recommended next step
 
 Run the M2B manual music checklist above on `open .build/CHIBI.app` with real playback, starting
-with items 1–5 (permission flow and the three dance levels). Then decide whether to commit M2B
-on `milestone-2b-music-reactive-dancing`. M2A's checklist and
+with items 1–5 (permission flow and the three dance levels). Then decide whether to open a pull
+request for `milestone-2b-music-reactive-dancing`. M2A's checklist and
 [PR #1](https://github.com/sjyu0423/CHIBI/pull/1) still need review before anything merges into
 `main`.
