@@ -79,4 +79,85 @@ struct CharacterStateMachineTests {
     #expect(machine.handle(.dragBegan) == .dragging)
     #expect(machine.handle(.dragEnded) == .idle)
   }
+
+  @Test func musicDrivesDanceLevelsFromIdleAndSettlesBack() {
+    var machine = CharacterStateMachine()
+    #expect(machine.handle(.musicDanceRequested(.gentle)) == .dancing)
+    #expect(machine.musicLevel == .gentle)
+    #expect(machine.handle(.musicDanceRequested(.rhythmic)) == .dancing)
+    #expect(machine.musicLevel == .rhythmic)
+    #expect(machine.handle(.musicDanceRequested(.energetic)) == .hopDancing)
+    #expect(machine.handle(.musicStopped) == .idle)
+    #expect(machine.musicLevel == nil && machine.musicTarget == nil)
+  }
+
+  @Test func draggingOverridesMusicAndResumesTheLatestLevel() {
+    var machine = CharacterStateMachine()
+    machine.handle(.musicDanceRequested(.rhythmic))
+    #expect(machine.handle(.dragBegan) == .dragging)
+    #expect(machine.musicLevel == nil)
+    #expect(machine.handle(.musicDanceRequested(.energetic)) == .dragging)
+    #expect(machine.handle(.dragEnded) == .hopDancing)
+    #expect(machine.musicLevel == .energetic)
+  }
+
+  @Test func musicStoppingDuringADragEndsInIdle() {
+    var machine = CharacterStateMachine()
+    machine.handle(.musicDanceRequested(.energetic))
+    machine.handle(.dragBegan)
+    #expect(machine.handle(.musicStopped) == .dragging)
+    #expect(machine.handle(.dragEnded) == .idle)
+    #expect(machine.musicLevel == nil)
+  }
+
+  @Test func manualLoopingPreviewsOverrideMusicUntilIdlePreview() {
+    var machine = CharacterStateMachine()
+    machine.handle(.musicDanceRequested(.energetic))
+    #expect(machine.handle(.previewRequested(.walk)) == .walking)
+    #expect(machine.musicLevel == nil && machine.isManualPreview)
+    #expect(machine.handle(.musicDanceRequested(.rhythmic)) == .walking)
+    machine.handle(.dragBegan)
+    #expect(machine.handle(.dragEnded) == .walking)
+    #expect(machine.handle(.musicStopped) == .walking)
+    machine.handle(.musicDanceRequested(.gentle))
+    #expect(machine.handle(.previewRequested(.idle)) == .dancing)
+    #expect(machine.musicLevel == .gentle && !machine.isManualPreview)
+  }
+
+  @Test func manualDancePreviewIsNotMistakenForMusic() {
+    var machine = CharacterStateMachine()
+    machine.handle(.previewRequested(.dance))
+    #expect(machine.handle(.musicDanceRequested(.energetic)) == .dancing)
+    #expect(machine.musicLevel == nil)
+    #expect(machine.handle(.clicked) == .dancing)
+  }
+
+  @Test func clickingAMusicDancePlaysTheReactionThenResumes() {
+    var machine = CharacterStateMachine()
+    machine.handle(.musicDanceRequested(.rhythmic))
+    #expect(machine.handle(.clicked) == .reacting)
+    #expect(machine.musicLevel == nil)
+    #expect(machine.handle(.musicDanceRequested(.gentle)) == .reacting)
+    #expect(machine.handle(.reactionFinished) == .dancing)
+    #expect(machine.musicLevel == .gentle)
+  }
+
+  @Test func sleepingIgnoresMusicUntilWoken() {
+    var machine = CharacterStateMachine()
+    machine.handle(.musicDanceRequested(.rhythmic))
+    #expect(machine.handle(.sleepRequested) == .sleeping)
+    #expect(machine.handle(.musicDanceRequested(.energetic)) == .sleeping)
+    #expect(machine.handle(.wakeRequested) == .hopDancing)
+    machine.handle(.sleepRequested)
+    machine.handle(.musicStopped)
+    #expect(machine.handle(.wakeRequested) == .idle)
+  }
+
+  @Test func happyPreviewDuringMusicReturnsToTheMusicDance() {
+    var machine = CharacterStateMachine()
+    machine.handle(.musicDanceRequested(.gentle))
+    #expect(machine.handle(.previewRequested(.happy)) == .reacting)
+    #expect(machine.handle(.reactionFinished) == .dancing)
+    #expect(machine.musicLevel == .gentle)
+  }
 }

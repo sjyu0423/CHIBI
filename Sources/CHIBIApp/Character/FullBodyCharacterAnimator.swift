@@ -13,11 +13,14 @@ final class FullBodyCharacterAnimator: CharacterAnimating {
     static let expression = "character.full-body.expression"
     static let completion = "character.full-body.completion"
     static let effects = "character.full-body.effects"
+    static let accent = "character.full-body.accent"
   }
 
   private let character: FullBodyCharacterNode
   private let configuration: CharacterManifest.AnimationConfiguration
   private var currentState: CharacterState?
+  private(set) var currentStyle: MotionStyle = .standard
+  private var musicBeatDuration: TimeInterval?
   private var bubbleCount = 0
   var reactionDidFinish: (() -> Void)?
 
@@ -25,7 +28,7 @@ final class FullBodyCharacterAnimator: CharacterAnimating {
   var isExpressiveMotionEnabled: Bool {
     didSet {
       guard oldValue != isExpressiveMotionEnabled, let currentState else { return }
-      play(state: currentState)
+      play(state: currentState, style: currentStyle, transition: .reset)
     }
   }
 
@@ -38,10 +41,21 @@ final class FullBodyCharacterAnimator: CharacterAnimating {
     isExpressiveMotionEnabled = character.rig != nil
   }
 
-  func play(state: CharacterState) {
+  func play(state: CharacterState, style: MotionStyle, transition: MotionTransition) {
     currentState = state
-    character.resetPose()
-    let motion = FullBodyChoreography.motion(for: state, configuration: configuration)
+    currentStyle = style
+    var motion = FullBodyChoreography.motion(for: state, style: style, configuration: configuration)
+    switch transition {
+    case .reset:
+      character.resetPose()
+    case .blend(let duration):
+      character.stopPoseActions()
+      motion = motion.blended(over: duration)
+      if motion.breath == nil {
+        character.breathPivot.run(easedScale(to: 1, duration: duration), withKey: ActionKey.breath)
+      }
+    }
+    character.speed = speed
 
     character.run(
       action(for: motion.body) { pose, duration in
@@ -63,7 +77,9 @@ final class FullBodyCharacterAnimator: CharacterAnimating {
     if isExpressiveMotionEnabled, let expression = motion.expression,
       let rest = character.warpGeometry(for: .rest)
     {
-      character.sprite.warpGeometry = rest
+      if transition == .reset || character.sprite.warpGeometry == nil {
+        character.sprite.warpGeometry = rest
+      }
       character.sprite.run(
         action(for: expression) { [character] pose, duration in
           [
@@ -71,6 +87,8 @@ final class FullBodyCharacterAnimator: CharacterAnimating {
               ?? .wait(forDuration: duration)
           ]
         }, withKey: ActionKey.expression)
+    } else {
+      character.sprite.warpGeometry = nil
     }
     if motion.emitsSleepBubbles {
       startSleepBubbles()
@@ -82,6 +100,38 @@ final class FullBodyCharacterAnimator: CharacterAnimating {
           .run { [weak self] in self?.reactionDidFinish?() },
         ]), withKey: ActionKey.completion)
     }
+  }
+
+  /// Squashes briefly at the feet and rebounds. Runs on its own pivot so it layers over the
+  /// dance without interrupting it, and keeps the same real duration at any tempo.
+  func accentBeat(strength: Double) {
+    guard currentStyle.isMusic else { return }
+    let amount = 0.02 + 0.035 * max(0, min(1, strength))
+    let rate = max(Double(character.speed), 0.1)
+    let squash = SKAction.group([
+      .scaleX(to: 1 + amount * 0.6, duration: 0.07 * rate),
+      .scaleY(to: 1 - amount, duration: 0.07 * rate),
+    ])
+    squash.timingMode = .easeOut
+    character.accentPivot.run(
+      .sequence([squash, easedScale(to: 1, duration: 0.2 * rate)]), withKey: ActionKey.accent)
+  }
+
+  func setMusicTempo(beatDuration: TimeInterval?) {
+    musicBeatDuration = beatDuration
+    character.speed = speed
+  }
+
+  private var speed: CGFloat {
+    guard currentStyle.isMusic, let musicBeatDuration else { return 1 }
+    return FullBodyChoreography.tempoScale(
+      forBeatDuration: musicBeatDuration, configuration: configuration)
+  }
+
+  private func easedScale(to scale: CGFloat, duration: TimeInterval) -> SKAction {
+    let action = SKAction.scale(to: scale, duration: duration)
+    action.timingMode = .easeInEaseOut
+    return action
   }
 
   private func action<Pose>(

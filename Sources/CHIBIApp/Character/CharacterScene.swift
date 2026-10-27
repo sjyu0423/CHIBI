@@ -42,10 +42,13 @@ final class CharacterScene: SKScene, CharacterRendering {
     animator.reactionDidFinish = { [weak self] in
       guard let self, self.stateMachine.state == .reacting else { return }
       self.stateMachine.handle(.reactionFinished)
-      self.animator.play(state: .idle)
+      self.present()
     }
-    animator.play(state: .idle)
+    present()
   }
+
+  static let musicBlendDuration: TimeInterval = 0.35
+  static let musicSettleDuration: TimeInterval = 0.7
 
   required init?(coder aDecoder: NSCoder) {
     nil
@@ -66,6 +69,7 @@ final class CharacterScene: SKScene, CharacterRendering {
   }
 
   var state: CharacterState { stateMachine.state }
+  var musicLevel: MusicDanceLevel? { stateMachine.musicLevel }
   var supportsExpressiveMotion: Bool { animator.supportsExpressiveMotion }
   var isExpressiveMotionEnabled: Bool { animator.isExpressiveMotionEnabled }
 
@@ -96,27 +100,55 @@ final class CharacterScene: SKScene, CharacterRendering {
 
   func reactToClick() {
     guard stateMachine.handle(.clicked) == .reacting else { return }
-    animator.play(state: .reacting)
+    present()
   }
 
   func beginDragging() {
     stateMachine.handle(.dragBegan)
-    animator.play(state: .dragging)
+    present()
   }
 
   func endDragging() {
     stateMachine.handle(.dragEnded)
-    animator.play(state: stateMachine.state)
+    present()
   }
 
   func setSleeping(_ sleeping: Bool) {
     stateMachine.handle(sleeping ? .sleepRequested : .wakeRequested)
-    animator.play(state: stateMachine.state)
+    present()
   }
 
   func previewAnimation(_ animation: CharacterAnimation) {
     stateMachine.handle(.previewRequested(animation))
-    animator.play(state: stateMachine.state)
+    present()
+  }
+
+  /// Music commands only replay the animation when the pose or music level actually changes;
+  /// accents and tempo changes layer onto the running dance.
+  func applyMusic(_ command: MusicDanceCommand) {
+    switch command {
+    case .dance(let level):
+      updatePresentation(after: .musicDanceRequested(level), blend: Self.musicBlendDuration)
+    case .settle:
+      updatePresentation(after: .musicStopped, blend: Self.musicSettleDuration)
+    case .accent(let strength):
+      guard stateMachine.musicLevel != nil else { return }
+      animator.accentBeat(strength: strength)
+    case .tempo(let beatDuration):
+      animator.setMusicTempo(beatDuration: beatDuration)
+    }
+  }
+
+  private func updatePresentation(after event: CharacterEvent, blend: TimeInterval) {
+    let before = (stateMachine.state, stateMachine.musicLevel)
+    stateMachine.handle(event)
+    guard before != (stateMachine.state, stateMachine.musicLevel) else { return }
+    present(.blend(blend))
+  }
+
+  private func present(_ transition: MotionTransition = .reset) {
+    let style = stateMachine.musicLevel.map(MotionStyle.music) ?? .standard
+    animator.play(state: stateMachine.state, style: style, transition: transition)
   }
 }
 

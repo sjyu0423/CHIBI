@@ -32,10 +32,36 @@ In restricted execution environments, SwiftPM may need `--disable-sandbox` and w
 Clang/SwiftPM module-cache paths. This is an environment workaround, not an application
 requirement.
 
-The flower menu-bar item controls visibility, Small/Medium/Large size, animation previews,
-position reset, and quitting. Drag the character itself to move it; click it for a happy
+The flower menu-bar item controls visibility, Small/Medium/Large size, music reaction, animation
+previews, position reset, and quitting. Drag the character itself to move it; click it for a happy
 reaction. Transparent pixels outside the approximate character silhouette pass mouse input
 through to the application below.
+
+## Music reactive dancing
+
+**Music Reactive › Start Listening** lets the character dance to whatever the Mac is playing.
+Nothing listens until you choose Start; listening always begins off after launch.
+
+- **Privacy:** CHIBI measures loudness and rhythm locally, in memory. It never records, saves,
+  or uploads audio, never uses the microphone, and ignores the tiny video stream ScreenCaptureKit
+  requires.
+- **Permission:** macOS groups system audio with screen recording. The first Start shows the
+  system prompt; allow CHIBI under System Settings › Privacy & Security › Screen & System Audio
+  Recording, then quit and reopen CHIBI. If access is missing, the menu says so and offers
+  **Open Privacy Settings…**. Ad-hoc rebuilds can invalidate the grant; remove and re-add CHIBI
+  in that list if Start keeps reporting a permission problem.
+- **Dancing:** quiet music → gentle sway; moderate, rhythmic music → sway with a dip on the
+  beat; loud music with a steady beat → hop dance that follows the tempo. Beats add small
+  squash accents. When the music stops, the character settles back to idle after about 1.5 s.
+- **Sensitivity** (Low/Normal/High) shifts how loud audio must be; **Auto Dance** off keeps
+  listening without dancing. Both are remembered.
+- Dragging, clicking, sleep, and the Animation Preview menu always take priority; choose
+  **Animation Preview › Idle** to hand control back to the music.
+
+Testing with real music: start playback in any app at normal volume, choose Start Listening, and
+watch the status line change from "waiting for music" to "Hearing music (~N BPM)". Try a quiet
+ballad (gentle sway), a mid-tempo pop song (rhythmic sway with accents), a dance track (hop
+dance), pause and resume quickly (no restart), then stop playback (settles within ~2 s).
 
 ## Animation preview
 
@@ -47,8 +73,9 @@ the one-shot happy reaction returns to idle.
 The **Developer** submenu offers session-only Slow Motion (¼×) and a toggle for the experimental
 head-tilt and hair warp, which is available when the manifest defines a `fullBodyRig`.
 
-Render offscreen animation previews (GIFs, filmstrips, and warp review sheets) into
-`assets/previews/animation` with a Python that has Pillow and NumPy:
+Render offscreen animation previews (GIFs, filmstrips, warp review sheets, and a
+`music-reactive` clip driven by a synthetic soundtrack) into `assets/previews/animation` with a
+Python that has Pillow and NumPy:
 
 ```sh
 PYTHON=.build/artvenv/bin/python scripts/render-animation-previews.sh
@@ -68,7 +95,9 @@ PYTHON=.build/artvenv/bin/python scripts/render-animation-previews.sh
 7. Click through the window's transparent corners into an app underneath.
 8. Exercise Show/Hide, all three sizes, and Reset Position.
 9. Quit and relaunch; confirm visibility, size, and last dragged position persist.
-10. Choose Quit CHIBI (or press Command-Q while the menu is open) and confirm exit.
+10. Confirm Music Reactive shows "Not listening" after launch. Start Listening with music
+    playing; confirm the permission flow, dancing, drag override, and settling after Stop.
+11. Choose Quit CHIBI (or press Command-Q while the menu is open) and confirm exit.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for component boundaries and
 [docs/HANDOFF.md](docs/HANDOFF.md) for current verification status.

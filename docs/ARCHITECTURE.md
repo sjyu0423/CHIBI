@@ -5,23 +5,26 @@ macOS application.
 
 ## Runtime flow
 
-`CHIBIApplication` creates `AppSettings`, then the overlay and menu controllers.
-`CharacterOverlayWindowController` owns a passive transparent `NSWindow` and a
+`CHIBIApplication` creates `AppSettings`, the overlay, the `MusicReactiveCoordinator`, and the
+menu controller. `CharacterOverlayWindowController` owns a passive transparent `NSWindow` and a
 `CharacterView`. The view presents `CharacterScene`, converts pointer coordinates
 between screen, window, view, and scene spaces, and reports completed drags. The menu
-mutates settings or requests a preview through the narrow overlay protocol.
+mutates settings, requests a preview through the narrow overlay protocol, or starts and stops
+music listening through the coordinator.
 
 `CharacterScene` owns behavior presentation only. It sends events to the pure-value
 `CharacterStateMachine`, then asks the selected `CharacterAnimating` implementation to present
 the resulting exclusive state. The manifest chooses the full-body renderer or experimental
-layered renderer. A new state resets the selected character's transforms, so one-shot and
-looping actions cannot compete.
+layered renderer. Every presentation first removes all keyed pose actions, so one-shot and
+looping actions cannot compete. User-driven changes reset transforms to baseline; music-driven
+changes blend from the current transforms instead (see Music reaction).
 
 ## Full-body character (default)
 
 `FullBodyCharacterNode` loads one complete transparent sprite and applies manifest-defined
 position, normalized anchor, and scale. It nests the sprite under a `bodyPivot` at the feet
-(rotation and squash/stretch keep the shoes planted) and a `breathPivot` (breathing scale).
+(rotation and squash/stretch keep the shoes planted), an `accentPivot` at the feet (brief music
+beat accents layered over the dance), and a `breathPivot` (breathing scale).
 An `effectsRoot` holds transient effects such as sleep bubbles. Missing full-body artwork
 selects the layered/procedural path instead.
 
@@ -60,9 +63,68 @@ manifest `fullBodyRig` registers:
 Without a rig, the full-body animation is rigid. Eyes and mouth are never altered.
 `CharacterScene` exposes animation speed and an expressive-motion toggle for the Developer menu.
 
-`scripts/render-animation-previews.sh` compiles the real Behavior, Character, and Settings
-sources with an offscreen `SKRenderer` harness. It produces deterministic preview clips without
-launching AppKit.
+`scripts/render-animation-previews.sh` compiles the real Audio, Behavior, Character, and
+Settings sources with an offscreen `SKRenderer` harness. It produces deterministic preview clips
+without launching AppKit, including a music-reactive clip driven by a synthetic soundtrack
+through the real analyzer and dance controller.
+
+## Music reaction
+
+All audio work is local and in memory. Capture starts only from the menu, is never persisted as
+"on", and stops when the app quits.
+
+Pipeline:
+
+1. `ScreenCaptureAudioSource` (`Audio/`) implements `SystemAudioSource` with ScreenCaptureKit:
+   48 kHz stereo audio of the main display's mix, excluding CHIBI's own process, no cursor, and
+   a 2×2 px, 1 fps video stream that the API requires and that is ignored. It checks
+   `CGPreflightScreenCaptureAccess` and asks once with `CGRequestScreenCaptureAccess`; a denied
+   or revoked grant maps to `AudioCaptureError.permissionDenied`, other failures to
+   `unavailable` or `interrupted`. Buffers are downmixed to mono with vDSP.
+2. `AudioCaptureService` (main actor) owns start/stop and status. Source operations run strictly
+   in order, and a delivery gate drops already-queued audio the moment capture stops, so rapid
+   start/stop cannot leave a stale stream delivering.
+3. `AudioAnalysisPipeline` runs `AudioFeatureAnalyzer` on the capture thread and forwards only
+   `AudioFeatures` to the main actor. Samples are discarded after analysis.
+4. `MusicReactiveCoordinator` (`Music/`) feeds features to `MusicDanceController` on the audio
+   timeline and sends its commands to the overlay. A 10 Hz timer treats a stalled stream as
+   silence. When capture ends for any reason, the controller resets and the character settles.
+
+Analysis (`AudioFeatureAnalyzer`, 1024-sample hops of a 2048-sample Hann window, about 21 ms):
+
+- RMS level and an envelope (30 ms attack, 350 ms release) in dBFS.
+- Activity: mean power over 0.5 s with hysteresis (on above −55 dBFS, off below −62 dBFS),
+  shifted by the sensitivity offset (±8 dB).
+- Onsets: spectral flux of log-compressed magnitudes (30 Hz–10 kHz plus a 30–200 Hz bass term),
+  peak-picked one hop late against the median plus 6× the median absolute deviation of the last
+  1.5 s, with a 90 ms refractory period. Strength is relative to a decaying recent peak.
+- Tempo (`TempoTracker`): autocorrelation of 6 s of onset impulses, 70–180 BPM with a prior
+  around 120 BPM and a harmonic term. Reported only after estimates agree within 4% for 1.5 s
+  (confidence ≥ 0.3), kept while agreeing estimates stay ≥ 0.2, and dropped after 3 s without
+  support or 1 s of inactivity.
+- Beats (`BeatGrid`): an onset becomes a beat only near a whole number of tempo periods after the
+  previous beat (±15%), so off-grid sounds and duplicates are rejected.
+- Intensity: 0.45 × loudness (−46 to −12 dBFS) + 0.35 × onset pulse + 0.2 × tempo confidence,
+  smoothed over 0.6 s.
+
+Latency: onsets and beats arrive about 21–45 ms after the sound (hop plus peak-picking delay)
+plus ScreenCaptureKit's buffering; dancing starts about 0.8 s after music begins, a tempo needs
+about 4 s of steady rhythm, and the character settles 1.5 s after silence.
+
+Behavior (`MusicDanceController`, `Behavior/`): commands are emitted only on changes. Levels use
+separate enter and exit thresholds (rhythmic 0.40/0.32, energetic 0.66/0.56). Rhythmic needs a
+tempo or onset pulse; energetic needs a reliable tempo. A level is held at least 2.5 s, a change
+must persist 0.6 s, and with a tempo the change waits for the next beat (up to 0.75 s). Pauses
+hold the current level. Beats while rhythmic or energetic produce accents at most every 0.22 s.
+
+Presentation: `CharacterStateMachine` treats music as its lowest-priority input
+(`musicDanceRequested`, `musicStopped`). It applies from idle or an existing music dance, is
+remembered during reactions, drags, sleep, and manual looping previews, and resumes when the
+character returns to idle. `CharacterScene.applyMusic` replays only when the state or music level
+changes, using `MotionTransition.blend`: actions stop, transforms stay, and each track eases into
+its first keyframe. Music styles: gentle is a half-amplitude sway at half speed with breathing,
+rhythmic is the standard sway, and energetic is a four-beat hop loop. While a music style plays,
+the character node's speed follows the tempo, folded by octaves into 0.7–1.4×.
 
 ## Layered character
 
@@ -115,7 +177,10 @@ The state machine remains the sole owner of exclusive poses:
 - a new preview interrupts the previous preview;
 - dragging a looping state restores that state on release;
 - dragging a happy reaction returns to idle;
-- preview requests are ignored while actively dragging.
+- preview requests are ignored while actively dragging;
+- music dances only from idle; manual looping previews, drags, reactions, and sleep take
+  priority, and the latest music level resumes when the character is idle again;
+- clicking a music dance plays the happy reaction, then resumes the music dance.
 
 Both animator implementations use keyed SpriteKit actions with ease-in/ease-out timing. Resetting
 a pose removes actions from all animated containers and restores their baseline
@@ -172,7 +237,8 @@ local hit-test timer is also suspended while hidden.
 - `CharacterRendering` separates overlay input from the concrete SpriteKit scene.
 - `CharacterAnimating` separates state presentation from full-body versus layered motion.
 - `CharacterOverlayControlling` separates menu commands from the AppKit window controller.
-- `AppSettings` centralizes persisted user choices.
+- `SystemAudioSource` separates ScreenCaptureKit from scripted test sources.
+- `AppSettings` centralizes persisted user choices, including music sensitivity and Auto Dance.
 
 The manifest and layer containers are data/implementation types rather than protocols.
 Additional protocols should be added only when a real alternate implementation exists.

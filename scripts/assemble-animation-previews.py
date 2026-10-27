@@ -63,6 +63,9 @@ def assemble_clip(directory: Path, output: Path) -> dict:
       [slot * width, 22, (slot + 1) * width - 1, height + 21], outline=(210, 120, 120))
     draw.text((slot * width + 6, 5), f"t={index * FRAME_MS / 1000:.2f}s", fill=(0, 0, 0))
   strip.save(output / f"{directory.name}-filmstrip.png", optimize=True)
+  timeline = directory / "timeline.txt"
+  if timeline.exists():
+    (output / f"{directory.name}-timeline.txt").write_text(timeline.read_text())
   return stats
 
 

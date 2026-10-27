@@ -55,11 +55,31 @@ Baseline: tag `v0.1-character-baseline` (`fde39ea`) on `main`.
 Acceptance requires the manual review checklist in `docs/HANDOFF.md`. M2A must not be merged
 into `main` until approved.
 
+## M2B — Music-reactive dancing (implemented on `milestone-2b-music-reactive-dancing`; live review pending)
+
+Branched from M2A (`be4716c`); M2A's pull request remains open and unmerged.
+
+- Explicit, user-started system-audio capture through ScreenCaptureKit (audio only; a 2×2,
+  1 fps video stream is required by the API and discarded). Never starts at launch, never uses
+  the microphone, and never stores or uploads audio.
+- Permission denial, unavailable streams, and interruptions are reported in the menu and in an
+  alert with a link to Privacy & Security.
+- Local Accelerate analysis: RMS level and envelope, activity with hysteresis, spectral-flux
+  onsets with an adaptive median threshold, autocorrelation tempo reported only when stable,
+  beats accepted only on the tempo grid, and a smoothed intensity.
+- A pure `MusicDanceController` maps the analysis to gentle sway, rhythmic sway with beat
+  accents, or a beat-aligned hop dance. It applies start delay, silence hold, hysteresis,
+  minimum dwell, and beat-quantized level changes.
+- Music is the lowest-priority input to `CharacterStateMachine`; dragging, clicks, sleep, and
+  manual previews override it, and it resumes afterwards.
+- Menu: Music Reactive › Start/Stop Listening, status line, Sensitivity (Low/Normal/High), and
+  Auto Dance. Sensitivity and Auto Dance persist; listening does not.
+- Synthetic-audio tests and a deterministic music-reactive preview clip.
+
+Acceptance requires the manual music checklist in `docs/HANDOFF.md` with real playback.
+
 ## Later milestones (not started)
 
-Music synchronization may be explored only after M2A is accepted and its privacy,
-permission, and performance design is approved. Do not add audio capture as part of M1A.
-
-Costumes, networking, AI/LLM features, file access, accessibility automation, global
-keystroke monitoring, and production distribution signing/notarization remain outside the
-current milestone.
+AI/LLM features, conversations, personality modes, costumes, networking, file access,
+accessibility automation, global keystroke monitoring, and production distribution
+signing/notarization remain outside the current milestone.

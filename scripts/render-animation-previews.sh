@@ -11,6 +11,7 @@ cd "$ROOT"
 swift build
 mkdir -p "$WORK"
 swiftc -swift-version 6 -parse-as-library -O \
+  Sources/CHIBIApp/Audio/*.swift \
   Sources/CHIBIApp/Behavior/*.swift \
   Sources/CHIBIApp/Character/*.swift \
   Sources/CHIBIApp/Settings/*.swift \

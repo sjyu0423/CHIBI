@@ -1,11 +1,37 @@
 import SpriteKit
 
+/// Which choreography variant presents a state.
+enum MotionStyle: Equatable, Sendable {
+  case standard
+  case music(MusicDanceLevel)
+
+  var isMusic: Bool { self != .standard }
+}
+
+/// How the previous pose hands over to the next one.
+enum MotionTransition: Equatable, Sendable {
+  /// Stop all keyed actions and restore baseline transforms immediately.
+  case reset
+  /// Stop all keyed actions but ease from the current transforms into the new motion.
+  case blend(TimeInterval)
+}
+
 @MainActor
 protocol CharacterAnimating: AnyObject {
   var reactionDidFinish: (() -> Void)? { get set }
   var supportsExpressiveMotion: Bool { get }
   var isExpressiveMotionEnabled: Bool { get set }
-  func play(state: CharacterState)
+  func play(state: CharacterState, style: MotionStyle, transition: MotionTransition)
+  /// A short accent on a music beat; ignored unless a music style is playing.
+  func accentBeat(strength: Double)
+  /// Beat period that music styles follow, or nil for their default tempo.
+  func setMusicTempo(beatDuration: TimeInterval?)
+}
+
+extension CharacterAnimating {
+  func play(state: CharacterState) {
+    play(state: state, style: .standard, transition: .reset)
+  }
 }
 
 @MainActor
@@ -13,10 +39,13 @@ final class CharacterAnimator: CharacterAnimating {
   private enum ActionKey {
     static let primary = "character.primary"
     static let blink = "character.blink"
+    static let accent = "character.accent"
   }
 
   private let character: LayeredCharacterNode
   private let configuration: CharacterManifest.AnimationConfiguration
+  private var style: MotionStyle = .standard
+  private var musicBeatDuration: TimeInterval?
   var reactionDidFinish: (() -> Void)?
   let supportsExpressiveMotion = false
   var isExpressiveMotionEnabled = false
@@ -29,8 +58,11 @@ final class CharacterAnimator: CharacterAnimating {
     self.configuration = configuration
   }
 
-  func play(state: CharacterState) {
+  /// The layered fallback has no blend support; every transition resets.
+  func play(state: CharacterState, style: MotionStyle, transition: MotionTransition) {
+    self.style = style
     character.resetPose()
+    character.speed = speed
     switch state {
     case .idle:
       playIdle()
@@ -47,6 +79,27 @@ final class CharacterAnimator: CharacterAnimating {
     case .hopDancing:
       playHopDance()
     }
+  }
+
+  func accentBeat(strength: Double) {
+    guard style.isMusic else { return }
+    let squash = 0.02 + 0.03 * max(0, min(1, strength))
+    character.torsoRoot.run(
+      .sequence([
+        eased(.scaleY(to: 1 - squash, duration: 0.07)),
+        eased(.scaleY(to: 1, duration: 0.18)),
+      ]), withKey: ActionKey.accent)
+  }
+
+  func setMusicTempo(beatDuration: TimeInterval?) {
+    musicBeatDuration = beatDuration
+    character.speed = speed
+  }
+
+  private var speed: CGFloat {
+    guard style.isMusic, let musicBeatDuration else { return 1 }
+    return FullBodyChoreography.tempoScale(
+      forBeatDuration: musicBeatDuration, configuration: configuration)
   }
 
   private func playIdle() {
@@ -151,7 +204,7 @@ final class CharacterAnimator: CharacterAnimating {
   }
 
   private func playDance() {
-    let beat = configuration.danceBeatDuration
+    let beat = configuration.danceBeatDuration * (style == .music(.gentle) ? 2 : 1)
     character.run(
       .repeatForever(
         .sequence([

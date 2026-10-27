@@ -44,6 +44,20 @@ struct MotionTrack<Pose: Equatable & Sendable>: Equatable, Sendable {
   var introDuration: TimeInterval { intro.reduce(0) { $0 + $1.duration } }
   var loopDuration: TimeInterval { loop.reduce(0) { $0 + $1.duration } }
   var allKeyframes: [MotionKeyframe<Pose>] { intro + loop }
+
+  /// Eases from whatever pose is current into the first keyframe over at least `duration`.
+  /// A loop without an intro is rotated so its first keyframe becomes the intro and the loop
+  /// continues seamlessly from there.
+  func blended(over duration: TimeInterval) -> MotionTrack {
+    var track = self
+    if let first = intro.first {
+      track.intro[0].duration = max(first.duration, duration)
+    } else if let first = loop.first {
+      track.intro = [MotionKeyframe(pose: first.pose, duration: duration, timing: .easeInEaseOut)]
+      track.loop = Array(loop.dropFirst()) + [first]
+    }
+    return track
+  }
 }
 
 struct FullBodyMotion: Equatable, Sendable {
@@ -54,6 +68,14 @@ struct FullBodyMotion: Equatable, Sendable {
 
   /// One-shot motions report completion so the state machine can return to idle.
   var finishes: Bool { body.isFinite }
+
+  func blended(over duration: TimeInterval) -> FullBodyMotion {
+    var motion = self
+    motion.body = body.blended(over: duration)
+    motion.breath = breath?.blended(over: duration)
+    motion.expression = expression?.blended(over: duration)
+    return motion
+  }
 }
 
 /// Character-independent choreography for the full-body renderer.
@@ -61,6 +83,35 @@ enum FullBodyChoreography {
   typealias Pose = FullBodyPose
   typealias Frame = MotionKeyframe<FullBodyPose>
   typealias ExpressionFrame = MotionKeyframe<FullBodyExpression>
+
+  /// Music styles change only the two dance states: gentle is a slower, smaller sway, rhythmic
+  /// is the standard sway, and energetic is a hop dance whose loop spans whole beats.
+  static func motion(
+    for state: CharacterState, style: MotionStyle,
+    configuration: CharacterManifest.AnimationConfiguration
+  ) -> FullBodyMotion {
+    switch (state, style) {
+    case (.dancing, .music(.gentle)):
+      sway(beat: configuration.danceBeatDuration * 2, amplitude: 0.55, breathing: true)
+    case (.hopDancing, .music):
+      musicHopDance(configuration)
+    default:
+      motion(for: state, configuration: configuration)
+    }
+  }
+
+  /// Playback rate that puts the dance's beat on the music's beat, folded by octaves into a
+  /// comfortable 0.7–1.4× range so very slow or fast songs still look natural.
+  static func tempoScale(
+    forBeatDuration beatDuration: TimeInterval,
+    configuration: CharacterManifest.AnimationConfiguration
+  ) -> Double {
+    guard beatDuration.isFinite, beatDuration > 0 else { return 1 }
+    var scale = configuration.danceBeatDuration / beatDuration
+    while scale < 0.7 { scale *= 2 }
+    while scale > 1.4 { scale /= 2 }
+    return scale
+  }
 
   static func motion(
     for state: CharacterState, configuration: CharacterManifest.AnimationConfiguration
@@ -226,34 +277,87 @@ enum FullBodyChoreography {
   private static func swayDance(_ configuration: CharacterManifest.AnimationConfiguration)
     -> FullBodyMotion
   {
-    let beat = configuration.danceBeatDuration
+    sway(beat: configuration.danceBeatDuration, amplitude: 1, breathing: false)
+  }
+
+  /// One side per beat, landing with a small dip. `amplitude` 1 is the standard sway dance.
+  private static func sway(beat: TimeInterval, amplitude a: Double, breathing: Bool)
+    -> FullBodyMotion
+  {
+    func reach(_ side: Double) -> Pose {
+      Pose(
+        offsetX: 7 * a * side, offsetY: 3 * a, rotation: -0.05 * a * side, scaleX: 1 - 0.01 * a,
+        scaleY: 1 + 0.015 * a)
+    }
+    func dip(_ side: Double) -> Pose {
+      Pose(
+        offsetX: 7 * a * side, rotation: -0.045 * a * side, scaleX: 1 + 0.02 * a,
+        scaleY: 1 - 0.025 * a)
+    }
+    func lean(_ side: Double, tilt: Double, hair: Double) -> FullBodyExpression {
+      FullBodyExpression(headTilt: tilt * a * side, hairSway: hair * a * -side)
+    }
     return FullBodyMotion(
       body: MotionTrack(loop: [
-        Frame(
-          pose: Pose(offsetX: -7, offsetY: 3, rotation: 0.05, scaleX: 0.99, scaleY: 1.015),
-          duration: beat * 0.7),
-        Frame(
-          pose: Pose(offsetX: -7, rotation: 0.045, scaleX: 1.02, scaleY: 0.975),
-          duration: beat * 0.3,
-          timing: .easeIn),
-        Frame(
-          pose: Pose(offsetX: 7, offsetY: 3, rotation: -0.05, scaleX: 0.99, scaleY: 1.015),
-          duration: beat * 0.7),
-        Frame(
-          pose: Pose(offsetX: 7, rotation: -0.045, scaleX: 1.02, scaleY: 0.975),
-          duration: beat * 0.3,
-          timing: .easeIn),
+        Frame(pose: reach(-1), duration: beat * 0.7),
+        Frame(pose: dip(-1), duration: beat * 0.3, timing: .easeIn),
+        Frame(pose: reach(1), duration: beat * 0.7),
+        Frame(pose: dip(1), duration: beat * 0.3, timing: .easeIn),
       ]),
+      breath: breathing
+        ? MotionTrack(loop: [
+          Frame(pose: Pose(scaleX: 0.997, scaleY: 1.01), duration: beat),
+          Frame(pose: .rest, duration: beat),
+        ]) : nil,
       expression: MotionTrack(loop: [
-        ExpressionFrame(
-          pose: FullBodyExpression(headTilt: -0.7, hairSway: 0.4), duration: beat * 0.7),
-        ExpressionFrame(
-          pose: FullBodyExpression(headTilt: -0.6, hairSway: 0.9), duration: beat * 0.3),
-        ExpressionFrame(
-          pose: FullBodyExpression(headTilt: 0.7, hairSway: -0.4), duration: beat * 0.7),
-        ExpressionFrame(
-          pose: FullBodyExpression(headTilt: 0.6, hairSway: -0.9), duration: beat * 0.3),
+        ExpressionFrame(pose: lean(-1, tilt: 0.7, hair: 0.4), duration: beat * 0.7),
+        ExpressionFrame(pose: lean(-1, tilt: 0.6, hair: 0.9), duration: beat * 0.3),
+        ExpressionFrame(pose: lean(1, tilt: 0.7, hair: 0.4), duration: beat * 0.7),
+        ExpressionFrame(pose: lean(1, tilt: 0.6, hair: 0.9), duration: beat * 0.3),
       ]))
+  }
+
+  /// Three side hops and a centered jump, one beat each, so the four-beat loop stays on the beat
+  /// when its playback rate follows the music.
+  private static func musicHopDance(_ configuration: CharacterManifest.AnimationConfiguration)
+    -> FullBodyMotion
+  {
+    let beat = configuration.danceBeatDuration
+    let hop = configuration.happyHopHeight * 0.6
+    let crouch = Pose(scaleX: 1.04, scaleY: 0.955)
+    func sideHop(_ side: Double) -> [Frame] {
+      [
+        Frame(
+          pose: Pose(offsetY: hop, rotation: -0.045 * side, scaleX: 0.98, scaleY: 1.03),
+          duration: beat * 0.4, timing: .easeOut),
+        Frame(
+          pose: Pose(offsetX: 10 * side, rotation: -0.02 * side, scaleX: 1.04, scaleY: 0.955),
+          duration: beat * 0.35, timing: .easeIn),
+        Frame(pose: Pose(offsetX: 10 * side, scaleX: 1.02, scaleY: 0.98), duration: beat * 0.25),
+      ]
+    }
+    let jump = [
+      Frame(
+        pose: Pose(offsetY: hop * 1.25, scaleX: 0.96, scaleY: 1.05), duration: beat * 0.45,
+        timing: .easeOut),
+      Frame(pose: crouch, duration: beat * 0.35, timing: .easeIn),
+      Frame(pose: Pose(scaleX: 1.02, scaleY: 0.98), duration: beat * 0.2),
+    ]
+    return FullBodyMotion(
+      body: MotionTrack(
+        intro: [Frame(pose: crouch, duration: beat * 0.3, timing: .easeOut)],
+        loop: sideHop(1) + sideHop(-1) + sideHop(1) + jump),
+      expression: MotionTrack(
+        intro: [ExpressionFrame(pose: .rest, duration: beat * 0.3)],
+        loop: hopExpression(beat: beat) + [
+          ExpressionFrame(
+            pose: FullBodyExpression(headTilt: 0.6, hairSway: -0.8), duration: beat * 0.4),
+          ExpressionFrame(
+            pose: FullBodyExpression(headTilt: 0.2, hairSway: 1), duration: beat * 0.6),
+          ExpressionFrame(pose: FullBodyExpression(hairSway: -0.6), duration: beat * 0.45),
+          ExpressionFrame(pose: FullBodyExpression(hairSway: 0.4), duration: beat * 0.35),
+          ExpressionFrame(pose: .rest, duration: beat * 0.2),
+        ]))
   }
 
   private static func hopDance(_ configuration: CharacterManifest.AnimationConfiguration)

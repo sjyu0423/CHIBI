@@ -1,10 +1,12 @@
 import SpriteKit
 
 /// Hierarchy: root (translation) → body pivot at the feet (rotation, squash and stretch)
-/// → breath pivot (breathing scale) → sprite root → sprite (optional seamless warp).
+/// → accent pivot at the feet (brief beat accents) → breath pivot (breathing scale)
+/// → sprite root → sprite (optional seamless warp).
 @MainActor
 final class FullBodyCharacterNode: SKNode {
   let bodyPivot = SKNode()
+  let accentPivot = SKNode()
   let breathPivot = SKNode()
   let spriteRoot = SKNode()
   let effectsRoot = SKNode()
@@ -58,12 +60,14 @@ final class FullBodyCharacterNode: SKNode {
       y: layout.position.y - spriteHeight * layout.anchorPoint.y)
     bodyPivot.name = "full-body-pivot"
     bodyPivot.position = feet
+    accentPivot.name = "full-body-accent"
     breathPivot.name = "full-body-breath"
     spriteRoot.name = "full-body-sprite-root"
     spriteRoot.position = CGPoint(x: 0, y: layout.position.y - feet.y)
     effectsRoot.name = "full-body-effects"
     addChild(bodyPivot)
-    bodyPivot.addChild(breathPivot)
+    bodyPivot.addChild(accentPivot)
+    accentPivot.addChild(breathPivot)
     breathPivot.addChild(spriteRoot)
     addChild(effectsRoot)
 
@@ -111,16 +115,23 @@ final class FullBodyCharacterNode: SKNode {
         rig: rig, expression: expression, aspect: spriteAspect))
   }
 
-  func resetPose() {
+  /// Stops pose actions without touching transforms, so the next motion can ease from the
+  /// current pose. A running beat accent finishes on its own.
+  func stopPoseActions() {
     for node in [self, bodyPivot, breathPivot, spriteRoot, sprite, effectsRoot] as [SKNode] {
       node.removeAllActions()
     }
     effectsRoot.removeAllChildren()
+  }
+
+  func resetPose() {
+    stopPoseActions()
+    accentPivot.removeAllActions()
     position = .zero
     zRotation = 0
     xScale = 1
     yScale = 1
-    for node in [bodyPivot, breathPivot] {
+    for node in [bodyPivot, accentPivot, breathPivot] {
       node.zRotation = 0
       node.xScale = 1
       node.yScale = 1

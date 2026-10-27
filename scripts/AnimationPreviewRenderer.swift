@@ -77,7 +77,78 @@ struct Clip {
   let name: String
   let duration: TimeInterval
   let expressive: Bool
+  var timeline: [(time: TimeInterval, command: MusicDanceCommand)] = []
   let start: @MainActor (CharacterScene) -> Void
+}
+
+/// Deterministic synthetic soundtrack for the music-reactive preview: silence, a quiet sustained
+/// chord, a 120 BPM kick and hi-hat groove over the chord, then silence. Not recorded material.
+enum PreviewSoundtrack {
+  static let sampleRate = 48_000.0
+  static let sections: [(name: String, seconds: Double)] = [
+    ("silence", 1), ("quiet chord", 5), ("120 BPM groove", 8), ("silence", 3),
+  ]
+
+  static func samples() -> [Float] {
+    var output: [Float] = []
+    var noise: UInt64 = 0x1234_5678
+    func random() -> Float {
+      noise = noise &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+      return Float(Int64(bitPattern: noise >> 1) % 2_000_000) / 1_000_000 - 1
+    }
+    for (name, seconds) in sections {
+      let count = Int(seconds * sampleRate)
+      var section = [Float](repeating: 0, count: count)
+      if name != "silence" {
+        let level: Float = name == "quiet chord" ? 0.03 : 0.075
+        for index in 0..<count {
+          let time = Double(index) / sampleRate
+          let chord = sin(2 * .pi * 220 * time) + sin(2 * .pi * 277.2 * time)
+            + sin(2 * .pi * 329.6 * time)
+          section[index] = level * Float(chord / 3)
+        }
+      }
+      if name == "120 BPM groove" {
+        for beat in stride(from: 0.0, to: seconds, by: 0.5) {
+          let start = Int(beat * sampleRate)
+          var phase = 0.0
+          for offset in 0..<Int(0.18 * sampleRate) where start + offset < count {
+            let elapsed = Double(offset) / sampleRate
+            phase += 2 * .pi * (50 + 90 * exp(-elapsed * 30)) / sampleRate
+            section[start + offset] += 0.5 * Float(exp(-elapsed * 18) * sin(phase))
+          }
+          let hat = Int((beat + 0.25) * sampleRate)
+          var previous: Float = 0
+          for offset in 0..<Int(0.03 * sampleRate) where hat + offset < count {
+            let white = random()
+            let decay = Float(exp(-Double(offset) / (0.03 * sampleRate) * 4))
+            section[hat + offset] += 0.1 * decay * (white - previous) / 2
+            previous = white
+          }
+        }
+      }
+      output += section
+    }
+    return output
+  }
+
+  /// Runs the app's analyzer and dance controller over the soundtrack.
+  static func commands() -> [(time: TimeInterval, command: MusicDanceCommand)] {
+    let analyzer = AudioFeatureAnalyzer(sampleRate: sampleRate)
+    var controller = MusicDanceController()
+    var timeline: [(TimeInterval, MusicDanceCommand)] = []
+    let audio = samples()
+    for start in stride(from: 0, to: audio.count, by: 960) {
+      let chunk = AudioChunk(
+        samples: Array(audio[start..<min(audio.count, start + 960)]), sampleRate: sampleRate)
+      for features in analyzer.process(chunk) {
+        for command in controller.update(features, now: features.time) {
+          timeline.append((features.time, command))
+        }
+      }
+    }
+    return timeline
+  }
 }
 
 @main
@@ -101,6 +172,10 @@ struct AnimationPreviewRenderer {
       Clip(name: "sway-dance", duration: 3.52, expressive: true) { $0.previewAnimation(.dance) },
       Clip(name: "hop-dance", duration: 3.7, expressive: true) { $0.previewAnimation(.hopDance) },
       Clip(name: "dragging", duration: 2.2, expressive: true) { $0.beginDragging() },
+      Clip(
+        name: "music-reactive", duration: PreviewSoundtrack.sections.reduce(0) { $0 + $1.seconds },
+        expressive: true, timeline: PreviewSoundtrack.commands()
+      ) { _ in },
     ]
     for clip in clips {
       renderClip(clip, into: output.appendingPathComponent("clips/\(clip.name)"))
@@ -118,13 +193,23 @@ struct AnimationPreviewRenderer {
       scene: scene, width: Int(overlay.width) * pixelScale, height: Int(overlay.height) * pixelScale)
     renderer.renderer.update(atTime: OffscreenRenderer.timeBase)
     clip.start(scene)
+    var pending = clip.timeline[...]
     let frames = Int((clip.duration * framesPerSecond).rounded())
     for frame in 0..<frames {
       let time = 1 / framesPerSecond + Double(frame) / framesPerSecond
+      while let next = pending.first, next.time <= time {
+        scene.applyMusic(next.command)
+        pending.removeFirst()
+      }
       renderer.render(
         atTime: time, to: directory.appendingPathComponent(String(format: "%04d.png", frame)))
     }
-    print("\(clip.name): \(frames) frames")
+    if !clip.timeline.isEmpty {
+      let lines = clip.timeline.map { String(format: "%6.2fs  %@", $0.time, "\($0.command)") }
+      try! (lines.joined(separator: "\n") + "\n").write(
+        to: directory.appendingPathComponent("timeline.txt"), atomically: true, encoding: .utf8)
+    }
+    print("\(clip.name): \(frames) frames, \(clip.timeline.count) music commands")
   }
 
   /// The resting character at each overlay preset, 1× and Retina 2×, for every display option.

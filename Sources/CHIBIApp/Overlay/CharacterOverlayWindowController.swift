@@ -16,6 +16,7 @@ protocol CharacterOverlayControlling: AnyObject {
   var isExpressiveMotionEnabled: Bool { get }
   func setExpressiveMotionEnabled(_ enabled: Bool)
   func setAnimationSpeed(_ speed: Double)
+  func applyMusic(_ command: MusicDanceCommand)
 }
 
 @MainActor
@@ -111,6 +112,10 @@ final class CharacterOverlayWindowController: NSWindowController, CharacterOverl
 
   func setAnimationSpeed(_ speed: Double) {
     renderer?.setAnimationSpeed(speed)
+  }
+
+  func applyMusic(_ command: MusicDanceCommand) {
+    renderer?.applyMusic(command)
   }
 
   private var renderer: CharacterRendering? {

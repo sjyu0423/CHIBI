@@ -14,4 +14,5 @@ protocol CharacterRendering: AnyObject {
   func fitRenderArea(to viewSize: CGSize, backingScale: CGFloat)
   func setAnimationSpeed(_ speed: Double)
   func setExpressiveMotionEnabled(_ enabled: Bool)
+  func applyMusic(_ command: MusicDanceCommand)
 }

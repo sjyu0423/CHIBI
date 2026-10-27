@@ -47,6 +47,9 @@ struct FullBodyAnimationTests {
     }
   }
 
+  private static let musicMotions: [(CharacterState, MotionStyle)] = MusicDanceLevel.allCases
+    .map { level in (level == .energetic ? .hopDancing : .dancing, .music(level)) }
+
   @Test func everyPoseKeepsTheSpriteInsideTheRenderArea() throws {
     let manifest = try CharacterAssetLoader.loadBundledDefault()
     let layout = try #require(manifest.fullBodyLayout)
@@ -56,20 +59,164 @@ struct FullBodyAnimationTests {
     let height = texture.height * layout.scale
     let feetY = layout.position.y - height * layout.anchorPoint.y
     let bounds = manifest.renderDimensions
-    for state in Self.allStates {
-      let motion = FullBodyChoreography.motion(for: state, configuration: manifest.animations)
+    let standard = Self.allStates.map { ($0, MotionStyle.standard) }
+    for (state, style) in standard + Self.musicMotions {
+      let motion = FullBodyChoreography.motion(
+        for: state, style: style, configuration: manifest.animations)
       let breathY = motion.breath?.allKeyframes.map(\.pose.scaleY).max() ?? 1
-      let breathX = motion.breath?.allKeyframes.map(\.pose.scaleX).max() ?? 1
+      // Beat accents squash at most 5.5% and widen at most 3.3%.
+      let accentX = style.isMusic ? 1.033 : 1
+      let breathX = (motion.breath?.allKeyframes.map(\.pose.scaleX).max() ?? 1) * accentX
       for pose in motion.body.allKeyframes.map(\.pose) {
         let tallest = height * pose.scaleY * breathY
         let top = feetY + pose.offsetY + tallest * cos(pose.rotation)
         let halfWidth =
           width / 2 * pose.scaleX * breathX + tallest * abs(sin(pose.rotation)) + abs(pose.offsetX)
-        #expect(top <= bounds.height / 2, "\(state) clips the top: \(top)")
-        #expect(feetY + pose.offsetY >= -bounds.height / 2, "\(state) clips the bottom")
-        #expect(halfWidth <= bounds.width / 2, "\(state) clips the sides: \(halfWidth)")
+        #expect(top <= bounds.height / 2, "\(state) \(style) clips the top: \(top)")
+        #expect(feetY + pose.offsetY >= -bounds.height / 2, "\(state) \(style) clips the bottom")
+        #expect(halfWidth <= bounds.width / 2, "\(state) \(style) clips the sides: \(halfWidth)")
       }
     }
+  }
+
+  @Test func musicChoreographyLoopsSpanWholeBeatsAndStaySynchronized() throws {
+    let configuration = try CharacterAssetLoader.loadBundledDefault().animations
+    let beat = configuration.danceBeatDuration
+    for (state, style) in Self.musicMotions {
+      let motion = FullBodyChoreography.motion(
+        for: state, style: style, configuration: configuration)
+      #expect(!motion.finishes)
+      let beats = motion.body.loopDuration / beat
+      #expect(abs(beats - beats.rounded()) < 1e-9, "\(style) loop is \(beats) beats")
+      let expression = try #require(motion.expression)
+      #expect(abs(expression.loopDuration - motion.body.loopDuration) < 1e-9)
+      #expect(abs(expression.introDuration - motion.body.introDuration) < 1e-9)
+      let durations = motion.body.allKeyframes.map(\.duration)
+      #expect(durations.allSatisfy { $0.isFinite && $0 > 0 })
+    }
+    let gentle = FullBodyChoreography.motion(
+      for: .dancing, style: .music(.gentle), configuration: configuration)
+    let rhythmic = FullBodyChoreography.motion(
+      for: .dancing, style: .music(.rhythmic), configuration: configuration)
+    #expect(rhythmic == FullBodyChoreography.motion(for: .dancing, configuration: configuration))
+    let gentleReach = gentle.body.loop.map { abs($0.pose.offsetX) }.max()!
+    let rhythmicReach = rhythmic.body.loop.map { abs($0.pose.offsetX) }.max()!
+    #expect(gentleReach < rhythmicReach * 0.6)
+    #expect(gentle.body.loopDuration == rhythmic.body.loopDuration * 2)
+  }
+
+  @Test func tempoScaleFollowsTheBeatAndFoldsIntoAComfortableRange() throws {
+    let configuration = try CharacterAssetLoader.loadBundledDefault().animations
+    let base = configuration.danceBeatDuration
+    #expect(
+      abs(FullBodyChoreography.tempoScale(forBeatDuration: base, configuration: configuration) - 1)
+        < 1e-9)
+    let at120 = FullBodyChoreography.tempoScale(forBeatDuration: 0.5, configuration: configuration)
+    #expect(abs(at120 - base / 0.5) < 1e-9)
+    for bpm in stride(from: 40.0, through: 240, by: 7) {
+      let scale = FullBodyChoreography.tempoScale(
+        forBeatDuration: 60 / bpm, configuration: configuration)
+      #expect(scale >= 0.7 && scale <= 1.4, "\(bpm) BPM -> \(scale)")
+      let ratio = log2(scale * (60 / bpm) / base)
+      #expect(abs(ratio - ratio.rounded()) < 1e-9, "\(bpm) BPM is not octave-folded")
+    }
+    #expect(FullBodyChoreography.tempoScale(forBeatDuration: 0, configuration: configuration) == 1)
+  }
+
+  @Test func blendedTracksEaseIntoTheFirstKeyframeWithoutChangingTheLoop() {
+    let a = FullBodyPose(rotation: 0.1)
+    let b = FullBodyPose(rotation: -0.1)
+    let loop = MotionTrack(loop: [
+      MotionKeyframe(pose: a, duration: 0.5), MotionKeyframe(pose: b, duration: 0.3),
+    ])
+    let blended = loop.blended(over: 0.2)
+    #expect(blended.intro == [MotionKeyframe(pose: a, duration: 0.2)])
+    #expect(blended.loop.map(\.pose) == [b, a])
+    #expect(blended.loopDuration == loop.loopDuration)
+
+    let withIntro = MotionTrack(
+      intro: [MotionKeyframe(pose: a, duration: 0.1)], loop: [MotionKeyframe(pose: b, duration: 1)])
+    #expect(withIntro.blended(over: 0.4).intro[0].duration == 0.4)
+    #expect(withIntro.blended(over: 0.05).intro[0].duration == 0.1)
+    #expect(withIntro.blended(over: 0.4).loop == withIntro.loop)
+  }
+
+  @Test @MainActor func blendKeepsTheCurrentPoseWhileResetRestoresBaseline() throws {
+    let manifest = try CharacterAssetLoader.loadBundledDefault()
+    let node = try #require(FullBodyCharacterNode(manifest: manifest, assetLoader: .bundled))
+    let animator = FullBodyCharacterAnimator(character: node, configuration: manifest.animations)
+    animator.play(state: .idle)
+    node.bodyPivot.zRotation = 0.03
+    node.position = CGPoint(x: 4, y: 2)
+    node.breathPivot.yScale = 1.01
+
+    animator.play(state: .dancing, style: .music(.gentle), transition: .blend(0.35))
+    #expect(abs(node.bodyPivot.zRotation - 0.03) < 1e-6 && node.position == CGPoint(x: 4, y: 2))
+    #expect(node.bodyPivot.hasActions() && node.breathPivot.hasActions())
+    #expect(node.sprite.warpGeometry != nil)
+
+    animator.play(state: .hopDancing, style: .music(.energetic), transition: .blend(0.35))
+    #expect(node.breathPivot.action(forKey: "character.full-body.breath") != nil)
+
+    animator.play(state: .idle)
+    #expect(node.bodyPivot.zRotation == 0 && node.position == .zero)
+    #expect(node.breathPivot.yScale == 1)
+  }
+
+  @Test @MainActor func accentsAndTempoApplyOnlyToMusicStyles() throws {
+    let manifest = try CharacterAssetLoader.loadBundledDefault()
+    let node = try #require(FullBodyCharacterNode(manifest: manifest, assetLoader: .bundled))
+    let animator = FullBodyCharacterAnimator(character: node, configuration: manifest.animations)
+    animator.setMusicTempo(beatDuration: 0.5)
+    animator.play(state: .dancing)
+    #expect(node.speed == 1)
+    animator.accentBeat(strength: 1)
+    #expect(!node.accentPivot.hasActions())
+
+    animator.play(state: .dancing, style: .music(.rhythmic), transition: .blend(0.35))
+    #expect(abs(node.speed - manifest.animations.danceBeatDuration / 0.5) < 1e-6)
+    animator.accentBeat(strength: 1)
+    #expect(node.accentPivot.hasActions())
+    animator.setMusicTempo(beatDuration: nil)
+    #expect(node.speed == 1)
+
+    animator.play(state: .dragging)
+    #expect(node.speed == 1 && !node.accentPivot.hasActions())
+    #expect(node.accentPivot.xScale == 1 && node.accentPivot.yScale == 1)
+  }
+
+  @Test @MainActor func sceneReplaysOnlyWhenTheMusicPresentationChanges() throws {
+    let scene = CharacterScene()
+    let pivot = try #require(scene.childNode(withName: "//full-body-pivot"))
+    let accent = try #require(scene.childNode(withName: "//full-body-accent"))
+    scene.applyMusic(.dance(.gentle))
+    #expect(scene.state == .dancing && scene.musicLevel == .gentle)
+    let body = try #require(pivot.action(forKey: "character.full-body.body"))
+    scene.applyMusic(.dance(.gentle))
+    scene.applyMusic(.tempo(beatDuration: 0.5))
+    #expect(pivot.action(forKey: "character.full-body.body") === body)
+    scene.applyMusic(.accent(strength: 0.8))
+    #expect(accent.hasActions())
+
+    scene.applyMusic(.dance(.energetic))
+    #expect(scene.state == .hopDancing)
+    #expect(pivot.action(forKey: "character.full-body.body") !== body)
+
+    scene.beginDragging()
+    scene.applyMusic(.accent(strength: 1))
+    scene.applyMusic(.dance(.rhythmic))
+    #expect(scene.state == .dragging && scene.musicLevel == nil)
+    scene.endDragging()
+    #expect(scene.state == .dancing && scene.musicLevel == .rhythmic)
+
+    scene.previewAnimation(.walk)
+    scene.applyMusic(.dance(.energetic))
+    #expect(scene.state == .walking)
+    scene.previewAnimation(.idle)
+    #expect(scene.state == .hopDancing && scene.musicLevel == .energetic)
+
+    scene.applyMusic(.settle)
+    #expect(scene.state == .idle && scene.musicLevel == nil)
   }
 
   @Test func bundledRigIsRegisteredAndInvalidRigsAreRejected() throws {

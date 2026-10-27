@@ -74,6 +74,21 @@
     "edgeAlphaMax": 0,
     "clipped": false
   },
+  "music-reactive": {
+    "frames": 408,
+    "size": [
+      420,
+      500
+    ],
+    "envelope": [
+      64,
+      26,
+      355,
+      481
+    ],
+    "edgeAlphaMax": 0,
+    "clipped": false
+  },
   "sleep": {
     "frames": 204,
     "size": [

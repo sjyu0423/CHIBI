@@ -2,8 +2,271 @@
 
 ## Status
 
-- Current work: M2A checkpoint finalized. The animation foundation and small-size rendering are
-  committed on `milestone-2a-animation` and are under review in a pull request.
+- Current work: M2B music-reactive dancing, implemented and uncommitted on
+  `milestone-2b-music-reactive-dancing`. That branch was created from M2A (`be4716c`), so it
+  contains every M2A animation and rendering change. Nothing was committed or pushed.
+- [PR #1](https://github.com/sjyu0423/CHIBI/pull/1) (M2A → `main`) is still open and unmerged.
+  `main` and `v0.1-character-baseline` are untouched.
+- See "M2B music-reactive dancing" below for design, verification, and the manual music
+  checklist.
+
+## M2B music-reactive dancing (2026-10-26)
+
+### What was built
+
+- Phase A, capture (`Sources/CHIBIApp/Audio`):
+  - `SystemAudioSource` is the protocol seam.
+  - `ScreenCaptureAudioSource` captures audio only via ScreenCaptureKit, and needs Screen
+    Recording permission.
+  - `AudioCaptureService` provides explicit start/stop, ordered teardown, a delivery gate, and
+    status.
+  - `AudioDownmix` and `AudioSampleBufferConverter` turn buffers into mono with vDSP.
+  - This phase was verified on its own, with tests and a live probe, before any animation
+    coupling.
+- Phase B, analysis:
+  - `SpectralFlux`: onset detection function.
+  - `TempoTracker`: autocorrelation tempo, reported only when stable.
+  - `BeatGrid`: accepts only onsets on the beat grid.
+  - `AudioFeatureAnalyzer`: level, envelope, activity, onsets, beats, pulse, and intensity.
+  - `AudioAnalysisPipeline`: runs analysis on the capture thread and forwards only features.
+- Phase C, behaviour:
+  - `MusicDanceController` (Behavior) is pure logic.
+  - `CharacterStateMachine` gains music events.
+  - New `MotionStyle`/`MotionTransition` (blend), music choreography variants, a beat-accent
+    pivot, and tempo-following speed.
+  - The coordinator lives in `Sources/CHIBIApp/Music/MusicReactiveCoordinator.swift`.
+- Phase D, menu:
+  - Music Reactive › status line, Start/Stop Listening, Open Privacy Settings… (shown only when
+    permission is missing), Sensitivity, and Auto Dance.
+  - Failure alerts.
+  - `AppSettings.musicSensitivity` and `isAutoDanceEnabled`.
+- Phase E, verification:
+  - 113 tests, including synthetic audio fixtures.
+  - Live capture probe, analyzer benchmark, and a deterministic preview clip.
+
+### Permission behaviour
+
+- Capture never starts at launch, and listening isn't persisted.
+- Start checks `CGPreflightScreenCaptureAccess`. If access is missing, it calls
+  `CGRequestScreenCaptureAccess` once:
+  - The first time, macOS shows its prompt and CHIBI is added to the Settings list.
+  - The status becomes "Needs Screen & System Audio Recording permission".
+  - An alert explains the steps and offers Open System Settings
+    (`x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture`).
+- A grant takes effect after CHIBI is relaunched.
+- Each ad-hoc `scripts/build-app.sh` rebuild changes the code signature. After a rebuild, macOS
+  may treat the grant as stale; remove CHIBI from the list and add it again.
+- Other failures:
+  - Revoked permission, or `SCStreamError.userDeclined`, maps to permission denied.
+  - Other start failures map to "Unavailable: reason".
+  - A stream that stops itself maps to "Stopped: reason", with an alert. The character settles
+    to idle.
+- Microphone is never used. Raw audio is never stored or uploaded. The 2×2 px, 1 fps video
+  frames that ScreenCaptureKit requires are dropped.
+
+### Analysis approach and limits
+
+The details are in `docs/ARCHITECTURE.md` › Music reaction. Summary:
+
+- Analysis uses 1024-sample hops of 2048-sample Hann frames, at 48 kHz.
+- Activity:
+  - Mean power over 0.5 s.
+  - Hysteresis: on above −55 dBFS, off below −62 dBFS, offset by ±8 dB for High/Low
+    sensitivity.
+- Onsets:
+  - Spectral flux of log-compressed magnitudes, broadband plus bass.
+  - Thresholds adapt via the median and median absolute deviation (MAD), not a fixed level.
+  - 90 ms refractory period.
+- Tempo:
+  - Autocorrelation of onset impulses over 6 s.
+  - Reported only after 1.5 s of agreeing estimates, so steady rhythm needs about 4 s.
+  - Octave errors happen (174 BPM may first read as 87); dance speed folds octaves, so this
+    is harmless.
+- Beats are onsets on the tempo grid only, so irregular transients don't become beats.
+- Latency:
+  - Onsets arrive about 21–45 ms after the sound, plus ScreenCaptureKit buffering.
+  - Dancing starts about 0.8 s after music begins.
+  - Level changes take at least 0.6 s and are quantized to the beat.
+  - Settling takes 1.5 s after silence.
+- No genre or "music vs speech" classification is claimed. Loud speech or steady noise can
+  produce a gentle sway; energetic dancing requires a reliable tempo.
+
+### Dance mapping and transition rules
+
+- Gentle sway, the default while music is present:
+  - Half-amplitude sway at half speed, with breathing.
+- Rhythmic sway:
+  - Requires intensity ≥ 0.40 (stays until < 0.32), plus a tempo or onset pulse ≥ 0.25.
+  - Uses the standard sway with dips, plus beat accents.
+- Hop dance, energetic:
+  - Requires intensity ≥ 0.66 (stays until < 0.56), plus a reliable tempo.
+  - A four-beat loop: three side hops and a jump, with beat accents.
+- Timing rules:
+  - Start delay 0.8 s, so a notification sound doesn't start a dance.
+  - Silence hold 1.5 s; a pause holds the current level.
+  - Minimum dwell 2.5 s; changes must persist 0.6 s.
+  - With a tempo, a change waits for the next beat (at most 0.75 s).
+  - Accent cooldown 0.22 s.
+- Presentation:
+  - Commands are emitted only on change.
+  - The scene replays only when the state or music level changes, blending in 0.35 s (settle:
+    0.7 s).
+  - Accents run on `accentPivot`; tempo uses node speed folded into 0.7–1.4×.
+- Priority:
+  - Dragging, clicks (happy reaction), sleep, and manual looping previews override music.
+  - The latest music level resumes afterwards. Animation Preview › Idle hands control back.
+  - Stopping capture settles to idle.
+
+### Verification
+
+- `xcrun swift-format lint -r Sources Tests Package.swift`: no findings.
+- `swift build` (debug): passed, no warnings.
+- `swift test`: 113/113 passed in 9 suites (46 before M2B). New suites:
+  - `AudioCaptureServiceTests` (12): start/deliver, denial, unavailable, immediate stop drops
+    queued audio, interruption, revoked permission, stop while starting, rapid pause/resume,
+    ScreenCaptureKit source denial without prompting twice, configuration, error mapping, and
+    downmix.
+  - `AudioFeatureAnalyzerTests` (14 tests, 22 cases):
+    - silence, quiet sustained music, barely audible, and loud steady noise (no beats)
+    - 96, 120, 128, and 150 BPM pulses within 3%, one beat per pulse, no duplicates
+    - dense humanized grooves at 92, 118, 140, and 174 BPM, with octave tolerance
+    - irregular transients across 4 seeds
+    - refractory period, pause/resume, chunk-size independence, the sensitivity gate,
+      sample-rate change, and the pipeline
+  - `MusicDanceControllerTests` (17): silence, notification-length sounds, start delay, level
+    mapping, tempo requirement, hysteresis, dwell and debounce, beat quantization, accents and
+    cooldown, pause hold and settle, rapid pause/resume, stalled stream, Auto Dance, tempo
+    changes, reset, and end-to-end analyzed drum loop and irregular audio.
+  - `MusicReactiveCoordinatorTests` (8): idle until started, dances to rhythmic audio, silence
+    settles while listening, late audio after stop is ignored, permission denial then retry,
+    interruption, Auto Dance, sensitivity, and stalled stream.
+  - State machine (+8): music levels, drag override and resume, music stopping mid-drag, manual
+    previews, click, sleep, and the happy preview.
+  - Animation (+6): music poses stay inside the render area (accent included), loops span whole
+    beats and stay in sync, tempo folding, blended tracks, blend versus reset, accents and tempo
+    only in music styles, and the scene replays only on presentation change.
+  - Settings (+2).
+- `scripts/build-app.sh` (release): passed. The ad-hoc signature is `dev.chibi.foundation`, and
+  `LSUIElement` is unchanged.
+- Launch smoke test: `open .build/CHIBI.app`; it stayed running with no capture at launch.
+  The status menu itself can't be driven by the agent's tools (menu extras are unsupported), so
+  the new submenu was verified only by build and tests.
+- Rendering regression:
+  - All existing preview GIFs and filmstrips regenerated byte-identical, including the sway
+    dance after its amplitude refactor.
+  - New clip `music-reactive` (17 s, synthetic: silence, quiet chord, 120 BPM groove, silence)
+    passed the clipping check (`edgeAlphaMax` 0). The filmstrip shows the artwork intact.
+  - Timeline (`assets/previews/animation/music-reactive-timeline.txt`):
+    - gentle at 1.83 s
+    - rhythmic at 8.15 s (groove began at 6 s)
+    - tempo 120.0 BPM at 9.62 s
+    - accents every beat
+    - energetic at 11.03 s, on a beat
+    - tempo cleared at 14.51 s
+    - settle at 16.02 s
+- Live capture, through a command-line probe using the same Audio sources: the agent's shell
+  already had Screen Recording access, and the probe never prompts.
+  - Real system audio: 251 chunks of 960 frames at 48 kHz in 5 s (20 ms buffers). Stop tore down
+    cleanly.
+  - 20 s of real playback: −20 to −24 dBFS envelope, active, 2–4 onsets/s, no tempo lock. The
+    source was probably Chrome; its content wasn't identified, so this isn't claimed as a music
+    test.
+  - Silence later: inactive, no onsets.
+  - No live Spotify or Apple Music test was performed. The packaged app's own permission prompt
+    and in-app listening were not exercised, to avoid triggering a system prompt.
+
+### Performance
+
+- App idle with capture off (release, Medium, 20 s with `ps`):
+  - M2B: 4.35% CPU, 80.7 MB RSS, 47 MB physical footprint.
+  - M2A, built from `be4716c` in a temporary worktree and measured the same way: 4.54% CPU,
+    82.7 MB RSS, 47 MB footprint.
+  - No regression. The earlier 57 MB RSS figure came from a different session.
+- Capture plus analysis (probe process, real stream): 1.0–1.1% of one core, 30 MB max RSS.
+- Analyzer alone (release benchmark, 120 s of synthetic audio): 0.030 s, about 4,000× real
+  time, 5.4 µs per hop, 0.03% of one core.
+- Dancing costs the same as the existing dance previews: SpriteKit actions at 30 fps, with no
+  per-frame restarts.
+
+### Manual music checklist
+
+1. Launch `.build/CHIBI.app`. Music Reactive should show "Not listening", and nothing should
+   prompt.
+2. Choose Start Listening:
+   - expect the macOS prompt, a "Needs … permission" status, and the alert
+   - grant access in Privacy & Security
+   - quit and relaunch CHIBI, then Start Listening again
+3. With a quiet ballad playing at normal volume, expect "Hearing music" and a gentle sway after
+   about 1 s.
+4. With a mid-tempo pop song, expect rhythmic sway with small beat accents and "~N BPM" in the
+   status.
+5. With an upbeat dance track, expect the hop dance with its speed following the song. Check
+   the feet and the sprite at Small, Medium, and Large.
+6. Pause and resume within a second: no restart. Stop playback: it settles to idle within about
+   2 s.
+7. While dancing, test these overrides:
+   - drag: it resumes on release
+   - click: happy hop, then resumes
+   - Animation Preview › Walk: overrides the music; Idle hands back
+   - sleep from the preview: stays asleep
+8. Sensitivity Low/High with quiet music; toggle Auto Dance off (settles) and on (resumes).
+9. A notification sound or short video clip should not start a dance.
+10. Stop Listening: the character settles and the status returns to "Not listening". Relaunch:
+    still not listening, with sensitivity and Auto Dance remembered.
+11. Watch CPU in Activity Monitor while dancing (expected about 5–7%).
+
+### Known limitations (M2B)
+
+- No live Spotify or Apple Music test yet, and the in-app permission flow hasn't been exercised
+  on the packaged app.
+- ScreenCaptureKit captures the main display's system mix. Per-app capture and Core Audio
+  process taps (macOS 14.4+) are possible future alternatives.
+- Ad-hoc signing makes the permission grant fragile across rebuilds.
+- Tempo needs about 4 s of steady rhythm. Rubato, swing, and very sparse music may never lock
+  (the character then sways rhythmically without hopping). Octave errors are possible.
+- Dance phase follows beats only loosely: accents land on beats, but the sway and hop loops may
+  drift until the next beat-quantized level change.
+- Beat accents on the layered fallback are a simple torso squash.
+- There is no music-versus-speech classification; loud speech can cause a gentle sway.
+- Alerts are modal (`NSAlert`) and briefly activate the accessory app.
+
+### Files touched (M2B)
+
+- New:
+  - `Sources/CHIBIApp/Audio/AudioCapture.swift`, `AudioDownmix.swift`,
+    `ScreenCaptureAudioSource.swift`, `SpectralFlux.swift`, `TempoTracker.swift`,
+    `AudioFeatureAnalyzer.swift`, `AudioAnalysisPipeline.swift`
+  - `Sources/CHIBIApp/Behavior/MusicDanceController.swift`
+  - `Sources/CHIBIApp/Music/MusicReactiveCoordinator.swift`
+- Modified:
+  - `Sources/CHIBIApp/Behavior/CharacterStateMachine.swift`
+  - `Character/CharacterAnimator.swift` (`MotionStyle`, `MotionTransition`, protocol, layered
+    accents)
+  - `Character/FullBodyCharacterAnimator.swift`, `Character/FullBodyCharacterNode.swift`
+    (`accentPivot`, `stopPoseActions`), `Character/FullBodyMotion.swift` (music variants,
+    blend, `tempoScale`)
+  - `Character/CharacterScene.swift`, `Character/CharacterRendering.swift`
+  - `Overlay/CharacterOverlayWindowController.swift`, `MenuBar/MenuBarController.swift`,
+    `Settings/AppSettings.swift`, `App/CHIBIApplication.swift`
+- Tests:
+  - New: `AudioCaptureServiceTests.swift`, `AudioFeatureAnalyzerTests.swift`,
+    `MusicDanceControllerTests.swift`, `MusicReactiveCoordinatorTests.swift`,
+    `Support/ScriptedAudioSource.swift`, `Support/AudioFixtures.swift`
+  - Updated: `CharacterStateMachineTests.swift`, `FullBodyAnimationTests.swift`,
+    `AppSettingsTests.swift`
+- Scripts: `scripts/AnimationPreviewRenderer.swift` (music clip and soundtrack),
+  `scripts/render-animation-previews.sh` (compiles Audio), `scripts/assemble-animation-previews.py`
+  (copies the timeline).
+- Previews: `assets/previews/animation/music-reactive.gif` (3.9 MB),
+  `music-reactive-filmstrip.png`, `music-reactive-timeline.txt`, `summary.json`.
+- Docs: `AGENTS.md`, `README.md`, `docs/ARCHITECTURE.md`, `docs/MILESTONES.md`, this handoff.
+- Not committed: everything above. Throwaway harnesses live in the ignored
+  `.build/capture-probe/`.
+
+## M2A checkpoint
+
+- The animation foundation and small-size rendering are committed on `milestone-2a-animation`
+  and are under review in a pull request.
 - M2A commit: `2660740aabb789023360dfdc3f02c6bc2afdb014` ("feat: M2A full-body animation
   foundation and small-size rendering"; 59 files). This handoff update follows it as a docs-only
   commit.
@@ -466,7 +729,8 @@ permissions are not granted to the agent.
 
 ## Recommended next step
 
-Run the manual review checklist on `open .build/CHIBI.app`, starting with item 0 (choose soft or
-original on the real desktop), then items 2, 4, and 5 (hop feel and warp quality). Record the
-results on https://github.com/sjyu0423/CHIBI/pull/1. Merge into `main` only after approval.
-Music and audio work stays out of scope until then.
+Run the M2B manual music checklist above on `open .build/CHIBI.app` with real playback, starting
+with items 1–5 (permission flow and the three dance levels). Then decide whether to commit M2B
+on `milestone-2b-music-reactive-dancing`. M2A's checklist and
+[PR #1](https://github.com/sjyu0423/CHIBI/pull/1) still need review before anything merges into
+`main`.
